@@ -22,6 +22,8 @@
   "devDependencies": {
     "eslint": "^4.6.1",
     "babel-eslint": "^8.0.0",
-    "eslint-plugin-chronobank": "github:chronobank/eslint-plugin-chronobank"
+    "eslint-plugin-chronobank": "github:chronobank/eslint-plugin-chronobank",
+    "moment": "^2.18.1",
+    "cron-parser": "^2.4.0"
   }
 }
