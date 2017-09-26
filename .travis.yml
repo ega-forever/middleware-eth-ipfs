@@ -1,0 +1,42 @@
+sudo: required
+dist: trusty
+os: linux
+group: stable
+language: node_js
+node_js: 7.6.0
+
+services:
+  - mongodb
+  - rabbitmq
+
+before_install:
+  - mongo data --eval 'db.dropDatabase();'
+  - sudo apt-get update
+  - sudo apt-get install python2.7 git-all pkg-config libncurses5-dev libssl-dev libnss3-dev libexpat-dev libc6-dev -y
+  - wget https://dist.ipfs.io/go-ipfs/v0.4.9/go-ipfs_v0.4.9_linux-amd64.tar.gz -O ipfs.tar.gz
+  - tar xvfz ipfs.tar.gz
+  - sudo mv go-ipfs/ipfs /usr/local/bin/ipfs
+  - ipfs init
+
+install:
+  - sudo rabbitmq-plugins enable rabbitmq_web_stomp
+  - npm install
+  - npm install -g pm2
+
+before_script:
+    - ipfs daemon > /dev/null &
+    - sleep 20 && cd $TRAVIS_BUILD_DIR && pm2 start index.js
+
+script:
+  - sleep 10 && npm test -- --coverage
+
+after_script:
+  - pm2 logs --nostream
+  - pm2 kill && pkill PM2
+
+notifications:
+  email: false
+
+cache:
+  directories:
+    - node_modules
