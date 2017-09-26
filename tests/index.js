@@ -15,7 +15,8 @@ const config = require('../config'),
 describe('core/ipfs', function () {
 
   before(async () => {
-    mongoose.connect(config.mongo.uri);
+    mongoose.Promise = Promise;
+    mongoose.connect(config.mongo.uri, {useMongoClient: true});
   });
 
   after(() => {
