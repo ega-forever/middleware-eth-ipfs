@@ -7,7 +7,8 @@ const config = {
     uri: process.env.MONGO_URI || 'mongodb://localhost:27017/data'
   },	
   rabbit: {
-    url: process.env.RABBIT_URI || 'amqp://localhost:5672'
+    url: process.env.RABBIT_URI || 'amqp://localhost:5672',
+    serviceName: process.env.RABBIT_SERVICE_NAME || 'app_eth'
   },
   schedule: {
     job: process.env.SCHEDULE_JOB || '30 * * * * *',
@@ -20,7 +21,13 @@ const config = {
       return {host: i.hostname, port: i.port, protocol: i.protocol.replace(':', '')};
     })
     .value() :
-    [{'host': 'localhost', 'port': '5001', 'protocol': 'http'}]
+    [{'host': 'localhost', 'port': '5001', 'protocol': 'http'}],
+  contracts: [
+    {
+      fieldName: 'from',
+      eventName: 'Transfer'
+    }
+  ]
 };
 
 module.exports = config;
