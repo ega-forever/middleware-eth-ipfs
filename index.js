@@ -39,20 +39,25 @@ let init = async () => {
     try {
       let event = JSON.parse(data.content.toString());
 
-      let fieldName = _.chain(config.contracts)
+      let eventDefinition = _.chain(config.contracts)
         .find({eventName: event.name})
-        .get('fieldName')
+        .pick(['newHashField', 'oldHashField'])
         .value();
 
-      let hash = _.get(event, `payload.${fieldName}`);
+      let hash = _.get(event, `payload.${eventDefinition.newHashField}`);
+      let oldHash = _.get(event, `payload.${eventDefinition.oldHashField}`);
 
-      console.log(hash);
-
-      /*      await pinModel.update(
-       {hash: bytes32toBase58(args.oldHash), network: args.network},
-       {updated: Date.now(), hash: bytes32toBase58(args.newHash), network: args.network},
-       {upsert: true, setDefaultsOnInsert: true}
-       );*/
+      if (hash)
+        await pinModel.update(
+          oldHash ? {hash: bytes32toBase58(oldHash)} : {},
+          {
+            $set: {
+              updated: Date.now(),
+              hash: bytes32toBase58(hash)
+            }
+          },
+          {upsert: true, setDefaultsOnInsert: true}
+        );
 
     } catch (e) {
       log.error(e);
@@ -62,8 +67,11 @@ let init = async () => {
 
   });
 
-  await scheduleService();
-
+  try {
+    await scheduleService();
+  } catch (e) {
+    log.error(e);
+  }
 };
 
 module.exports = init();

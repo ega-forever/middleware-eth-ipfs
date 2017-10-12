@@ -13,31 +13,34 @@ const schedule = require('node-schedule'),
  * @see {@link ../config.json}
  */
 
-module.exports = (network) => {
+module.exports = async () => {
 
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
 
-  schedule.scheduleJob(config.schedule.job, async () => {
-    let records = await pinModel.find({
-      network: network,
-      updated: {$lt: new Date(new Date() - config.schedule.checkTime * 1000)}
-    });
+  let isPending = false;
+  let rule = new schedule.RecurrenceRule();
+  _.merge(rule, config.schedule.job);
+
+  schedule.scheduleJob(rule, async () => {
+
+    if (isPending)
+      return log.info('still pinning...');
+
+    isPending = true;
+
+    log.info('pinning...');
+    let records = await pinModel.find().sort({updated: 1});
 
     let hashes = await Promise.all(
       _.chain(records)
         .filter(r => r.hash)
-        .map(r =>
-          Promise.all(
-            ipfsStack.map(ipfs =>
-              Promise.delay(1000)
-                .then(() => ipfs.pin.add(r.hash))
-                .timeout(30000)
-                .catch(err => {
-                  log.error(err);
-                })
-            )
-          )
-        )
+        .map(async function (r) {
+          return await Promise.mapSeries(ipfsStack, ipfs =>
+            Promise.resolve(ipfs.pin.add(r.hash))
+              .timeout(20000)
+              .then(()=>r.hash)
+              .catch(e => log.error(e)), {concurrency: 50});
+        })
         .value()
     );
 
@@ -46,6 +49,9 @@ module.exports = (network) => {
       {$currentDate: {updated: true}},
       {multi: true}
     );
+
+    isPending = false;
+
   });
 
 };
