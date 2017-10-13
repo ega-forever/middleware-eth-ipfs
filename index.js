@@ -19,21 +19,27 @@ mongoose.Promise = Promise;
 mongoose.connect(config.mongo.uri, {useMongoClient: true});
 
 let init = async () => {
-  let conn = await amqp.connect(config.rabbit.url);
+
+  let conn = await amqp.connect(config.rabbit.url)
+    .catch(() => {
+      log.error('rabbitmq is not available!');
+      process.exit(0);
+    });
+
   let channel = await conn.createChannel();
+
+  channel.on('close', () => {
+    log.error('rabbitmq process has finished!');
+    process.exit(0);
+  });
+
   const defaultQueue = `app_${config.rabbit.serviceName}.ipfs`;
 
-  try {
-    await channel.assertExchange('events', 'topic', {durable: false});
-    await channel.assertQueue(defaultQueue);
+  await channel.assertExchange('events', 'topic', {durable: false});
+  await channel.assertQueue(defaultQueue);
 
-    for (let contract of config.contracts)
-      await channel.bindQueue(defaultQueue, 'events', `${config.rabbit.serviceName}_chrono_sc.${contract.eventName.toLowerCase()}`);
-
-  } catch (e) {
-    log.error(e);
-    channel = await conn.createChannel();
-  }
+  for (let contract of config.contracts)
+    await channel.bindQueue(defaultQueue, 'events', `${config.rabbit.serviceName}_chrono_sc.${contract.eventName.toLowerCase()}`);
 
   channel.consume(defaultQueue, async (data) => {
     try {
@@ -64,14 +70,10 @@ let init = async () => {
     }
 
     channel.ack(data);
-
   });
 
-  try {
-    await scheduleService();
-  } catch (e) {
-    log.error(e);
-  }
+  scheduleService();
+
 };
 
 module.exports = init();

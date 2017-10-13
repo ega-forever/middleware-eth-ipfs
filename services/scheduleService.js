@@ -13,7 +13,7 @@ const schedule = require('node-schedule'),
  * @see {@link ../config.json}
  */
 
-module.exports = async () => {
+module.exports = () => {
 
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
 
@@ -38,7 +38,7 @@ module.exports = async () => {
           return await Promise.mapSeries(ipfsStack, ipfs =>
             Promise.resolve(ipfs.pin.add(r.hash))
               .timeout(20000)
-              .then(()=>r.hash)
+              .then(() => r.hash)
               .catch(e => log.error(e)), {concurrency: 50});
         })
         .value()
