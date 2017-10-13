@@ -25,30 +25,29 @@ describe('core/ipfs', function () {
 
   const default_delay = moment(
     new Date(parser.parseExpression(config.schedule.job).next().toString())
-  ).add(config.schedule.checkTime + 120, 'seconds').diff(new Date());
+  ).add(300, 'seconds').diff(new Date());
 
   it('add 100 new records to ipfs', async () => {
 
     let objs = _.chain(new Array(100))
-      .map(() => {
-        return {
+      .map(() => ({
           Data: new Buffer(generateRandomString()),
           Links: []
-        }
-      })
+        })
+      )
       .value();
 
     const ipfs_stack = config.nodes.map(node => ipfsAPI(node));
 
-    let results = await Promise.all(
-      _.chain(ipfs_stack)
-        .map(ipfs =>
-          _.map(objs, o => ipfs.object.put(o))
-        )
-        .flattenDeep()
-        .value()
-    );
+    let results = await Promise.all(ipfs_stack.map(async function (ipfs) {
+      return await Promise.mapSeries(objs, rec =>
+        ipfs.object.put(rec),
+        {concurrency: 20}
+      )
+    }));
+
     ctx.hashes = _.chain(results)
+      .flattenDeep()
       .map(r => r.toJSON().multihash)
       .uniq()
       .value()
@@ -58,12 +57,10 @@ describe('core/ipfs', function () {
   it('add hashes to mongo', async () => {
     await Promise.delay(10000);
 
-    let data = await Promise.all(
-      _.map(ctx.hashes, h =>
-        (new pinModel({
-          hash: h
-        })).save()
-      )
+    let data = await Promise.mapSeries(ctx.hashes, h =>
+      (new pinModel({
+        hash: h
+      })).save()
     );
 
     let size = _.chain(data).map(data => data._id).compact().size().value();
