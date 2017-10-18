@@ -46,7 +46,7 @@ let init = async () => {
       let event = JSON.parse(data.content.toString());
 
       let eventDefinition = _.chain(config.contracts)
-        .find({eventName: event.name})
+        .find(ev=>ev.eventName.toLowerCase() === event.name.toLowerCase())
         .pick(['newHashField', 'oldHashField'])
         .value();
 
