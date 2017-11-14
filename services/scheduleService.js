@@ -1,3 +1,9 @@
+/**
+ * Ping IPFS by specified time in config
+ * @module services/scheduleService
+ * @see module:config
+ */
+
 const schedule = require('node-schedule'),
   pinModel = require('../models/pinModel'),
   ipfsAPI = require('ipfs-api'),
@@ -7,16 +13,8 @@ const schedule = require('node-schedule'),
   Promise = require('bluebird'),
   log = bunyan.createLogger({name: 'plugins.ipfs.scheduleService'});
 
-/**
- * @module scheduleService
- * @description ping ipfs by specified time in config
- * @see {@link ../config.json}
- */
-
 module.exports = () => {
-
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
-
   let isPending = false;
   let rule = new schedule.RecurrenceRule();
   _.merge(rule, config.schedule.job);

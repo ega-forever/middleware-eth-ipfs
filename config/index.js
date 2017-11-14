@@ -1,3 +1,9 @@
+/**
+ * Chronobank/eth-ipfs configuration
+ * @module config
+ * @returns {Object} Configuration
+ */
+
 const _ = require('lodash'),
   url = require('url');
 require('dotenv').config();
