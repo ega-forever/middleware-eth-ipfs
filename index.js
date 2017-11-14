@@ -1,3 +1,13 @@
+/**
+ * Middleware service for maintaining records in IPFS
+ * See required modules 
+ * models/pinModel {@link models/pinModel}
+ * @module Chronobank/eth-ipfs
+ * @requires models/pinModel
+ * @requires services/scheduleService
+ * @requires helpers/bytes32toBase58
+ */
+
 const config = require('./config'),
   _ = require('lodash'),
   Promise = require('bluebird'),
@@ -9,17 +19,18 @@ const config = require('./config'),
   log = bunyan.createLogger({name: 'core.balanceProcessor'}),
   amqp = require('amqplib');
 
-/**
- * @module entry point
- * @description update balances for accounts, which addresses were specified
- * in received transactions from blockParser via amqp
- */
-
 mongoose.Promise = Promise;
 mongoose.connect(config.mongo.uri, {useMongoClient: true});
 
 let init = async () => {
 
+  /** @const {string} */
+  const defaultQueue = `app_${config.rabbit.serviceName}.ipfs`;
+
+  /**
+   * Establish AMQP connection
+   * @const {Object} 
+   */
   let conn = await amqp.connect(config.rabbit.url)
     .catch(() => {
       log.error('rabbitmq is not available!');
@@ -33,11 +44,10 @@ let init = async () => {
     process.exit(0);
   });
 
-  const defaultQueue = `app_${config.rabbit.serviceName}.ipfs`;
-
   await channel.assertExchange('events', 'topic', {durable: false});
   await channel.assertQueue(defaultQueue);
 
+  /** Run through the available contracts and binds to appropriate queues */
   for (let contract of config.contracts)
     await channel.bindQueue(defaultQueue, 'events', `${config.rabbit.serviceName}_chrono_sc.${contract.eventName.toLowerCase()}`);
 
