@@ -1,4 +1,4 @@
-/** 
+/**
  * Mongoose model. Used to store hashes, which need to be pinned.
  * @module models/pinModel
  * @returns {Object} Mongoose model
@@ -10,6 +10,7 @@ const Pin = new mongoose.Schema({
   hash: {type: String, required: true, unique: true},
   created: {type: Date, required: true, default: Date.now},
   updated: {type: Date, required: true, default: Date.now},
+  fail_tries: {type: Number, default: 0},
   network: {type: String}
 });
 
