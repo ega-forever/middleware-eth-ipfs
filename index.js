@@ -22,6 +22,11 @@ const config = require('./config'),
 mongoose.Promise = Promise;
 mongoose.connect(config.mongo.uri, {useMongoClient: true});
 
+mongoose.connection.on('disconnected', function () {
+  log.error('mongo disconnected!');
+  process.exit(0);
+});
+
 let init = async () => {
 
   /** @const {string} */

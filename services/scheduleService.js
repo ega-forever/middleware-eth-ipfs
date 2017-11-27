@@ -14,6 +14,7 @@ const schedule = require('node-schedule'),
   log = bunyan.createLogger({name: 'plugins.ipfs.scheduleService'});
 
 module.exports = () => {
+
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
   let isPending = false;
   let rule = new schedule.RecurrenceRule();
@@ -24,8 +25,6 @@ module.exports = () => {
     if (isPending)
       return log.info('still pinning...');
 
-    isPending = true;
-
     log.info('pinning...');
     let records = await pinModel.find().sort({updated: 1});
 
@@ -35,18 +34,66 @@ module.exports = () => {
         .map(async function (r) {
           return await Promise.mapSeries(ipfsStack, ipfs =>
             Promise.resolve(ipfs.pin.add(r.hash))
-              .timeout(20000)
-              .then(() => r.hash)
-              .catch(e => log.error(e)), {concurrency: 50});
+              .timeout(60000 * 20)
+              .then(() => {
+                log.info(`pinned: ${r.hash}`);
+                return {status: 1, hash: r.hash};
+              })
+              .catch(err => {
+                log.error(err);
+                return err instanceof Promise.TimeoutError ?
+                  {status: 0, hash: r.hash} :
+                  {status: 2, hash: r.hash};
+              }), {concurrency: 50});
         })
         .value()
     );
 
-    await pinModel.update(
-      {hash: {$in: _.chain(hashes).flattenDeep().uniq().value()}},
-      {$currentDate: {updated: true}},
-      {multi: true}
+    let activeHashes = _.chain(hashes)
+      .flattenDeep()
+      .filter({status: 1})
+      .map(item => item.hash)
+      .uniq().compact().value();
+
+    let inactiveHashes = _.chain(hashes)
+      .flattenDeep()
+      .filter({status: 0})
+      .map(item => item.hash)
+      .uniq().compact().value();
+
+    await pinModel.update({
+      hash: {
+        $in: activeHashes
+      }
+    },
+    {
+      $currentDate: {updated: true},
+      $set: {
+        fail_tries: 0
+      }
+    }, {multi: true}
     );
+
+    await pinModel.update({
+      hash: {
+        $in: inactiveHashes
+      }
+    },
+    {
+      $currentDate: {updated: true},
+      $inc: {
+        fail_tries: 1
+      }
+    },
+    {multi: true}
+    );
+
+    await pinModel.remove({
+      hash: {
+        $in: inactiveHashes
+      },
+      fail_tries: {$gt: 10}
+    });
 
     isPending = false;
 
