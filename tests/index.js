@@ -16,7 +16,7 @@ describe('core/ipfs', function () {
 
   before(async () => {
     mongoose.Promise = Promise;
-    mongoose.connect(config.mongo.uri, {useMongoClient: true});
+    mongoose.connect(config.mongo.data.uri, {useMongoClient: true});
   });
 
   after(() => {
