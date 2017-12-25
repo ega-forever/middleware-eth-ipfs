@@ -20,7 +20,7 @@ const config = require('./config'),
   amqp = require('amqplib');
 
 mongoose.Promise = Promise;
-mongoose.connect(config.mongo.uri, {useMongoClient: true});
+mongoose.connect(config.mongo.data.uri, {useMongoClient: true});
 
 mongoose.connection.on('disconnected', function () {
   log.error('mongo disconnected!');
