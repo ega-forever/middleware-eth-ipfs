@@ -4,7 +4,8 @@
  * @returns {Object} Mongoose model
  */
 
-const mongoose = require('mongoose');
+const mongoose = require('mongoose'),
+  config = require('../config');
 
 const Pin = new mongoose.Schema({
   hash: {type: String, required: true, unique: true},
@@ -14,4 +15,4 @@ const Pin = new mongoose.Schema({
   network: {type: String}
 });
 
-module.exports = mongoose.model('EthPin', Pin);
+module.exports = mongoose.model(`${config.mongo.data.collectionPrefix}Pin`, Pin);
