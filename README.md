@@ -2,7 +2,7 @@
 
 Middleware service for maintaining records in ipfs
 
-###Installation
+### Installation
 
 This module is a part of middleware services. You can install it in 2 ways:
 
@@ -33,7 +33,8 @@ To apply your configuration, create a .env file in root folder of repo (in case 
 Below is the expamle configuration:
 
 ```
-MONGO_URI=mongodb://localhost:27017/data
+MONGO_DATA_URI=mongodb://localhost:27017/data
+MONGO_DATA_COLLECTION_PREFIX=eth
 IPFS_NODES=http://localhost:5001, http://localhost:5001
 SCHEDULE_JOB=30 * * * * *
 RABBIT_URI=amqp://localhost:5672
@@ -50,6 +51,8 @@ The options are presented below:
 | name | description|
 | ------ | ------ |
 | MONGO_URI   | the URI string for mongo connection
+| MONGO_DATA_URI   | the URI string for mongo connection, which holds data collections (for instance, processed block's height). In case, it's not specified, then default MONGO_URI connection will be used)
+| MONGO_DATA_COLLECTION_PREFIX   | the collection prefix for data collections in mongo (If not specified, then the default MONGO_COLLECTION_PREFIX will be used)
 | IPFS_NODES   | should contain a comma separated uri connection strings for ipfs nodes
 | SCHEDULE_JOB   | a configuration for ipfs pin plugin in a cron based format
 | SCHEDULE_CHECK_TIME   | an option, which defines how old should be records, which have to be pinned
