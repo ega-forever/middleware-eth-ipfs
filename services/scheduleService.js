@@ -5,15 +5,17 @@
  */
 
 const schedule = require('node-schedule'),
-  pinModel = require('../models/pinModel'),
   ipfsAPI = require('ipfs-api'),
   _ = require('lodash'),
   bunyan = require('bunyan'),
+  pinModel = require('../models/pinModel'),
   config = require('../config'),
+  bytes32toBase58 = require('../utils/bytes32toBase58'),
+  base58toBytes32 = require('../utils/base58toBytes32'),
   Promise = require('bluebird'),
   log = bunyan.createLogger({name: 'plugins.ipfs.scheduleService'});
 
-module.exports = () => {
+module.exports = async (event) => {
 
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
   let isPending = false;
@@ -23,77 +25,108 @@ module.exports = () => {
   schedule.scheduleJob(rule, async () => {
 
     if (isPending)
-      return log.info('still pinning...');
+      return log.info(`still pinning for ${event.eventName}...`);
 
     log.info('pinning...');
-    let records = await pinModel.find().sort({updated: 1});
+    isPending = true;
 
-    let hashes = await Promise.all(
-      _.chain(records)
-        .filter(r => r.hash)
-        .map(async function (r) {
-          return await Promise.mapSeries(ipfsStack, ipfs =>
-            Promise.resolve(ipfs.pin.add(r.hash))
-              .timeout(60000 * 20)
-              .then(() => {
-                log.info(`pinned: ${r.hash}`);
-                return {status: 1, hash: r.hash};
-              })
-              .catch(err => {
-                log.error(err);
-                return err instanceof Promise.TimeoutError ?
-                  {status: 0, hash: r.hash} :
-                  {status: 2, hash: r.hash};
-              }), {concurrency: 50});
-        })
-        .value()
-    );
+    let badPins = await pinModel.find({
+      created: {
+        $lt: new Date(Date.now() - 30 * 24 * 3600000)
+      }
+    });
 
-    let activeHashes = _.chain(hashes)
-      .flattenDeep()
-      .filter({status: 1})
-      .map(item => item.hash)
-      .uniq().compact().value();
+    badPins = badPins.map(pin => pin.bytes32);
+
+    let records = await event.model.aggregate([
+      {
+        $group: {
+          _id: 'a',
+          newHashes: {$addToSet: `$${event.newHashField}`},
+          oldHashes: {$addToSet: `$${event.oldHashField || 'null'}`}
+        }
+      },
+      {
+        $project: {
+          filtered: {
+            $setDifference: ['$newHashes', '$oldHashes']
+          }
+        }
+      },
+      {
+        $project: {
+          filtered: {
+            $setDifference: ['$filtered', badPins]
+          }
+
+        }
+      }
+    ]);
+
+    records = _.chain(records).get('0.filtered').map(hash => bytes32toBase58(hash)).value();
+    let hashes = await Promise.map(records, async function (hash) {
+
+      try {
+        const result = await Promise.all(ipfsStack.map(async ipfs => {
+          return await Promise.resolve(ipfs.pin.add(hash))
+            .timeout(60000).catch(() => null);
+        }));
+
+        if (!_.compact(result).length)
+          return {status: 0, hash: hash};
+
+        log.info(`pinned: ${hash}`);
+
+        return {status: 1, hash: hash};
+
+      } catch (err) {
+        if (err instanceof Promise.TimeoutError)
+          return {status: 0, hash: hash};
+
+        log.error(err);
+        return {status: 2, hash: hash};
+      }
+
+    }, {concurrency: 20});
 
     let inactiveHashes = _.chain(hashes)
       .flattenDeep()
-      .filter({status: 0})
+      .filter(item => [0, 2].includes(item.status))
       .map(item => item.hash)
-      .uniq().compact().value();
+      .uniq()
+      .compact()
+      .value();
 
-    await pinModel.update({
-      hash: {
-        $in: activeHashes
-      }
-    },
-    {
-      $currentDate: {updated: true},
-      $set: {
-        fail_tries: 0
-      }
-    }, {multi: true}
-    );
-
-    await pinModel.update({
-      hash: {
-        $in: inactiveHashes
-      }
-    },
-    {
-      $currentDate: {updated: true},
-      $inc: {
-        fail_tries: 1
-      }
-    },
-    {multi: true}
-    );
+    if (inactiveHashes) {
+      log.info('inactive hashes count: ', inactiveHashes.length);
+      log.info('inactive hashes: ', inactiveHashes);
+    }
 
     await pinModel.remove({
       hash: {
-        $in: inactiveHashes
-      },
-      fail_tries: {$gt: 10}
+        $nin: inactiveHashes
+      }
     });
+
+    await pinModel.update({
+        hash: {
+          $in: inactiveHashes
+        }
+      },
+      {
+        $currentDate: {updated: true},
+        $inc: {
+          fail_tries: 1
+        }
+      },
+      {multi: true}
+    );
+
+    for (let hash of inactiveHashes)
+      await pinModel.findOneAndUpdate({hash: hash}, {
+        hash: hash,
+        bytes32: base58toBytes32(hash)
+      }, {upsert: true});
 
     isPending = false;
 
