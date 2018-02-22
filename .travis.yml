@@ -24,6 +24,8 @@ install:
   - npm install -g pm2
 
 before_script:
+    - echo IPFS_NODES=http://localhost:5001, http://localhost:5001 > .env
+    - echo SM_EVENTS=sethash:newHash:oldHash >> .env
     - ipfs daemon > /dev/null &
     - sleep 20 && cd $TRAVIS_BUILD_DIR && pm2 start index.js
 
