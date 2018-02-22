@@ -124,8 +124,13 @@ module.exports = async (event) => {
 
     for (let hash of inactiveHashes)
       await pinModel.findOneAndUpdate({hash: hash}, {
-        hash: hash,
-        bytes32: base58toBytes32(hash)
+        $set: {
+          hash: hash,
+          bytes32: base58toBytes32(hash)
+        },
+        $setOnInsert: {
+          created: Date.now()
+        }
       }, {upsert: true});
 
     isPending = false;
