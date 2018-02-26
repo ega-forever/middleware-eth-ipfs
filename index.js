@@ -69,13 +69,14 @@ let init = async () => {
   schedule.scheduleJob(rule, async () => {
 
     if (isPending)
-      return log.info(`still pinning for ${event.eventName}...`);
+      return;
 
     log.info('pinning...');
     isPending = true;
 
     const userPinRecords = await fetchUserHashesService(events, ipfsStack);
-    const pollPinRecords = await fetchPollHashesService(contracts, ipfsStack);
+    const pollPinRecords = await contracts.MultiEventsHistory.deployed().catch(() => null) ?
+      await fetchPollHashesService(contracts, ipfsStack) : [];
 
     const records = _.chain(userPinRecords)
       .union(pollPinRecords)
