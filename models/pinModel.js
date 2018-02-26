@@ -12,6 +12,7 @@ const Pin = new mongoose.Schema({
   bytes32: {type: String, required: true, unique: true},
   created: {type: Date, required: true, default: Date.now},
   updated: {type: Date, required: true, default: Date.now},
+  payload: {type: String},
   fail_tries: {type: Number, default: 0},
   network: {type: String}
 });
