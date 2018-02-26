@@ -24,18 +24,6 @@ describe('core/ipfs', function () {
   before(async () => {
     mongoose.Promise = Promise;
     mongoose.connect(config.mongo.data.uri, {useMongoClient: true});
-
-    ctx.events = _.chain(eventModels)
-      .toPairs()
-      .transform((result, pair) => {
-        let confEvent = _.find(config.smartContracts.events, ev => ev.eventName.toLowerCase() === pair[0].toLowerCase());
-        if (confEvent)
-          result.push(_.merge({
-            model: pair[1],
-          }, confEvent));
-      }, [])
-      .value();
-
   });
 
   after(() => {
@@ -75,8 +63,8 @@ describe('core/ipfs', function () {
     await Promise.delay(10000);
 
     let data = await Promise.mapSeries(ctx.hashes, hash =>
-      (new ctx.events[0].model({
-        [ctx.events[0].newHashField]: base58tobytes32(hash),
+      (new eventModels.SetHash({
+        newHash: base58tobytes32(hash),
         controlIndexHash: base58tobytes32(hash)
       })).save()
     );
@@ -87,20 +75,17 @@ describe('core/ipfs', function () {
   });
 
   it('validate hashes in mongo', async () => {
-    ctx.pins = await ctx.events[0].model.find({
-      [ctx.events[0].newHashField]: {$in: ctx.hashes}
+    ctx.pins = await eventModels.SetHash.find({
+      newHash: {$in: ctx.hashes}
     });
 
     expect(ctx.hashes.length).to.equal(ctx.hashes.length);
-
   });
-
 
   it('validate ping result of daemon', async () => {
     await Promise.delay(default_delay);
     const ipfs = ipfsAPI(config.nodes[1]);
     await Promise.mapSeries(ctx.hashes, async hash => ipfs.object.stat(hash));
   }).timeout(default_delay * 2);
-
 
 });
