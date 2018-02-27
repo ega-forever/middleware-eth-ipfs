@@ -19,6 +19,10 @@ const config = {
   schedule: {
     job: process.env.SCHEDULE_JOB || '30 * * * * *'
   },
+  web3: {
+    network: process.env.NETWORK || 'development',
+    uri: `${/^win/.test(process.platform) ? '\\\\.\\pipe\\' : ''}${process.env.WEB3_URI || `/tmp/${(process.env.NETWORK || 'development')}/geth.ipc`}`
+  },
   nodes: process.env.IPFS_NODES ? _.chain(process.env.IPFS_NODES)
     .split(',')
     .map(i => {
@@ -29,17 +33,9 @@ const config = {
     [{'host': 'localhost', 'port': '5001', 'protocol': 'http'}],
   smartContracts: {
     path: process.env.SMART_CONTRACTS_PATH || path.join(__dirname, '../node_modules/chronobank-smart-contracts/build/contracts'),
-    events: process.env.SM_EVENTS ? _.chain(process.env.SM_EVENTS)
-      .split(',')
-      .map(i => {
-        i = i.split(':');
-        return {
-          eventName: i[0],
-          newHashField: i[1],
-          oldHashField: i[2]
-        };
-      })
-      .value() : []
+    events: {
+      ttl: parseInt(process.env.SMART_CONTRACTS_EVENTS_TTL) || false
+    }
   }
 
 };
