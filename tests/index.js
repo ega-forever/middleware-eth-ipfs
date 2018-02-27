@@ -32,11 +32,11 @@ describe('core/ipfs', function () {
 
   const default_delay = moment(
     new Date(parser.parseExpression(config.schedule.job).next().toString())
-  ).add(300, 'seconds').diff(new Date());
+  ).add(120, 'seconds').diff(new Date());
 
-  it('add 100 new records to ipfs', async () => {
+  it('add 10 new records to ipfs', async () => {
 
-    let objs = _.chain(new Array(100))
+    let objs = _.chain(new Array(10))
       .map(() => ({
           Data: new Buffer(generateRandomString()),
           Links: []
@@ -48,7 +48,7 @@ describe('core/ipfs', function () {
 
     let results = await Promise.mapSeries(objs, rec =>
         ipfs.object.put(rec),
-      {concurrency: 20}
+      {concurrency: 5}
     );
 
     ctx.hashes = _.chain(results)
