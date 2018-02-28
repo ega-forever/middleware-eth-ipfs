@@ -19,6 +19,7 @@ const config = require('./config'),
   bunyan = require('bunyan'),
   requireAll = require('require-all'),
   _ = require('lodash'),
+  pinModel = require('./models/pinModel'),
   net = require('net'),
   contract = require('truffle-contract'),
   pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
@@ -78,10 +79,33 @@ let init = async () => {
     const pollPinRecords = await contracts.MultiEventsHistory.deployed().catch(() => null) ?
       await fetchPollHashesService(contracts, ipfsStack) : [];
 
-    const records = _.chain(userPinRecords)
+    let records = _.chain(userPinRecords)
       .union(pollPinRecords)
       .uniq()
       .compact()
+      .value();
+
+    const otherPins = await pinModel.find({
+      $or: [
+        {
+          created: {
+            $gte: new Date(Date.now() - 30 * 24 * 3600000)
+          }
+        },
+        {
+          created: {
+            $lt: new Date(Date.now() - 30 * 24 * 3600000)
+          },
+          fail_tries: {$lt: 100}
+        }
+      ],
+      hash: {$nin: records}
+    });
+
+    records = _.chain(otherPins)
+      .map(pin => pin.hash)
+      .union(records)
+      .uniq()
       .value();
 
     const pinResult = await pinOrRestoreHashService(records, ipfsStack);

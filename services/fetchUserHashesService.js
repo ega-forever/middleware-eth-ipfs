@@ -5,14 +5,8 @@
  */
 
 const _ = require('lodash'),
-  bunyan = require('bunyan'),
   pinModel = require('../models/pinModel'),
-  config = require('../config'),
-  bytes32toBase58 = require('../utils/bytes32toBase58'),
-  base58toBytes32 = require('../utils/base58toBytes32'),
-  Promise = require('bluebird'),
-  pinOrRestoreHashService = require('./pinOrRestoreHashService'),
-  log = bunyan.createLogger({name: 'plugins.ipfs.scheduleService'});
+  bytes32toBase58 = require('../utils/bytes32toBase58');
 
 module.exports = async (events) => {
 
