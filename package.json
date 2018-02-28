@@ -21,12 +21,13 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
+    "babel-eslint": "^8.2.2",
     "chai": "^4.1.1",
-    "mocha": "^3.5.0",
+    "cron-parser": "^2.4.0",
     "eslint": "^4.6.1",
     "eslint-plugin-chronobank": "github:chronobank/eslint-plugin-chronobank",
     "middleware-eth-blockprocessor": "github:chronobank/middleware-eth-blockprocessor",
-    "moment": "^2.18.1",
-    "cron-parser": "^2.4.0"
+    "mocha": "^3.5.0",
+    "moment": "^2.18.1"
   }
 }

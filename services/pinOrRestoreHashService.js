@@ -75,30 +75,30 @@ module.exports = async (records, ipfsStack) => {
     .value();
 
   await pinModel.update({
-      hash: {
-        $in: activeHashes
-      }
-    },
-    {
-      $set: {
-        fail_tries: 0
-      }
-    },
-    {multi: true}
+    hash: {
+      $in: activeHashes
+    }
+  },
+  {
+    $set: {
+      fail_tries: 0
+    }
+  },
+  {multi: true}
   );
 
   await pinModel.update({
-      hash: {
-        $in: inactiveHashes
-      }
-    },
-    {
-      $inc: {
-        fail_tries: 1
-      }
+    hash: {
+      $in: inactiveHashes
+    }
+  },
+  {
+    $inc: {
+      fail_tries: 1
+    }
 
-    },
-    {multi: true}
+  },
+  {multi: true}
   );
 
   return {
