@@ -42,7 +42,19 @@ const config = {
     events: {
       ttl: parseInt(process.env.SMART_CONTRACTS_EVENTS_TTL) || false
     }
-  }
+  },
+  events: process.env.SM_EVENTS ? _.chain(process.env.SM_EVENTS)
+    .split(',')
+    .map(i => {
+      i = i.split(':');
+      return {
+        eventName: i[0].toLowerCase(),
+        newHashField: i[1],
+        oldHashField: i[2]
+      };
+    })
+    .value() : []
+
 
 };
 

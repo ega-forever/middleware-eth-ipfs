@@ -1,10 +1,4 @@
 /**
- * Copyright 2017–2018, LaborX PTY
- * Licensed under the AGPL Version 3 license.
- * @author Egor Zuev <zyev.egor@gmail.com>
- */
-
-/**
  * Initialize all events for smartContracts
  * @module controllers/events
  * @requires utils/transformToFullName
@@ -23,10 +17,13 @@ const _ = require('lodash'),
  */
 module.exports = (contracts) => {
 
-  return _.chain(contracts)
+  let events = _.chain(contracts)
     .toPairs()
     .map(pair=>pair[1].events)
     .transform((result, ev)=>_.merge(result, ev))
+    .value();
+
+  let eventModels = _.chain(events)
     .toPairs()
     .map(pair => ({
       address: pair[0],
@@ -35,17 +32,17 @@ module.exports = (contracts) => {
     }))
     .groupBy('name')
     .map(ev => ({
-        name: ev[0].name,
-        inputs: _.chain(ev)
-          .map(ev => ev.inputs)
-          .flattenDeep()
-          .uniqBy('name')
-          .value()
-      })
+      name: ev[0].name,
+      inputs: _.chain(ev)
+        .map(ev => ev.inputs)
+        .flattenDeep()
+        .uniqBy('name')
+        .value()
+    })
     )
     .transform((result, ev) => { //build mongo model, based on event definition from abi
 
-      result[ev.name.toLowerCase()] = mongoose.model(ev.name, new mongoose.Schema(
+      result[ev.name] = mongoose.model(ev.name, new mongoose.Schema(
         _.chain(ev.inputs)
           .transform((result, obj) => {
             result[obj.name] = {
@@ -62,5 +59,7 @@ module.exports = (contracts) => {
       ));
     }, {})
     .value();
+
+  return {events, eventModels};
 
 };

@@ -17,16 +17,13 @@
 const config = require('./config'),
   Promise = require('bluebird'),
   mongoose = require('mongoose'),
-  Web3 = require('web3'),
-  fetchUserHashesService = require('./services/fetchUserHashesService'),
-  fetchPollHashesService = require('./services/fetchPollHashesService'),
+  fetchHashesService = require('./services/fetchHashesService'),
   schedule = require('node-schedule'),
   ipfsAPI = require('ipfs-api'),
   bunyan = require('bunyan'),
   requireAll = require('require-all'),
   _ = require('lodash'),
   pinModel = require('./models/pinModel'),
-  net = require('net'),
   contract = require('truffle-contract'),
   pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
   eventsModelsBuilder = require('./utils/eventsModelsBuilder'),
@@ -40,31 +37,13 @@ mongoose.connection.on('disconnected', function () {
   process.exit(0);
 });
 
-let provider = new Web3.providers.IpcProvider(config.web3.uri, net);
-const web3 = new Web3();
-web3.setProvider(provider);
-
-web3.currentProvider.connection.on('end', () => {
-  log.error('ipc process has finished!');
-  process.exit(0);
-});
-
-web3.currentProvider.connection.on('error', () => {
-  log.error('ipc process has finished!');
-  process.exit(0);
-});
-
-const contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
-  dirname: config.smartContracts.path,
-  filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/,
-  resolve: Contract => {
-    let contractInstance = contract(Contract);
-    contractInstance.setProvider(provider);
-    return contractInstance;
-  }
-});
-
 let init = async () => {
+
+  const contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
+    dirname: config.smartContracts.path,
+    filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/,
+    resolve: Contract => contract(Contract)
+  });
 
   let events = eventsModelsBuilder(contracts);
 
@@ -81,12 +60,13 @@ let init = async () => {
     log.info('pinning...');
     isPending = true;
 
-    const userPinRecords = await fetchUserHashesService(events, ipfsStack);
-    const pollPinRecords = await contracts.MultiEventsHistory.deployed().catch(() => null) ?
-      await fetchPollHashesService(contracts, ipfsStack) : [];
+    let records = await Promise.mapSeries(config.events, async event =>
+      events[event.eventName] ?
+        await fetchHashesService(events[event.eventName], event.newHashField, event.oldHashField) : []
+    );
 
-    let records = _.chain(userPinRecords)
-      .union(pollPinRecords)
+    records = _.chain(records)
+      .flattenDeep()
       .uniq()
       .compact()
       .value();

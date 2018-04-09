@@ -69,7 +69,7 @@ describe('core/ipfs', function () {
     await Promise.delay(10000);
 
     let data = await Promise.mapSeries(ctx.hashes, hash =>
-      (new eventModels.SetHash({
+      (new eventModels.sethash({
         newHash: base58tobytes32(hash),
         controlIndexHash: base58tobytes32(hash)
       })).save()
@@ -81,7 +81,7 @@ describe('core/ipfs', function () {
   });
 
   it('validate hashes in mongo', async () => {
-    ctx.pins = await eventModels.SetHash.find({
+    ctx.pins = await eventModels.sethash.find({
       newHash: {$in: ctx.hashes}
     });
 
