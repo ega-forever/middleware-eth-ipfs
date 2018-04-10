@@ -48,7 +48,7 @@ const config = {
     .map(i => {
       i = i.split(':');
       return {
-        eventName: i[0].toLowerCase(),
+        eventName: i[0].toLowerCase().trim(),
         newHashField: i[1],
         oldHashField: i[2]
       };
