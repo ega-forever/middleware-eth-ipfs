@@ -14,9 +14,7 @@ const _ = require('lodash'),
   pinModel = require('../models/pinModel'),
   bytes32toBase58 = require('../utils/bytes32toBase58');
 
-module.exports = async (events) => {
-
-  const setHashEventModel = events.SetHash;
+module.exports = async (eventModel, newHashName, oldHashName) => {
 
   let badPins = await pinModel.find({
     created: {
@@ -27,12 +25,12 @@ module.exports = async (events) => {
 
   badPins = badPins.map(pin => pin.bytes32);
 
-  let records = await setHashEventModel.aggregate([
+  let records = await eventModel.aggregate([
     {
       $group: {
         _id: 'a',
-        newHashes: {$addToSet: '$newHash'},
-        oldHashes: {$addToSet: '$oldHash'}
+        newHashes: {$addToSet: `$${newHashName}`},
+        oldHashes: {$addToSet: `$${oldHashName}`}
       }
     },
     {
