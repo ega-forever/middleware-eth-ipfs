@@ -18,9 +18,11 @@ const config = require('../config'),
   parser = require('cron-parser'),
   base58tobytes32 = require('../utils/base58toBytes32'),
   mongoose = require('mongoose'),
+  contract = require('truffle-contract'),
   contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
     dirname: config.smartContracts.path,
     filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/,
+    resolve: Contract => contract(Contract)
   }),
   eventModels = eventsModelsBuilder(contracts),
   ctx = {};
@@ -67,9 +69,8 @@ describe('core/ipfs', function () {
 
   it('add hashes to mongo', async () => {
     await Promise.delay(10000);
-
     let data = await Promise.mapSeries(ctx.hashes, hash =>
-      (new eventModels.SetHash({
+      (new eventModels.sethash({
         newHash: base58tobytes32(hash),
         controlIndexHash: base58tobytes32(hash)
       })).save()
@@ -80,8 +81,9 @@ describe('core/ipfs', function () {
 
   });
 
+
   it('validate hashes in mongo', async () => {
-    ctx.pins = await eventModels.SetHash.find({
+    ctx.pins = await eventModels.sethash.find({
       newHash: {$in: ctx.hashes}
     });
 
@@ -93,5 +95,6 @@ describe('core/ipfs', function () {
     const ipfs = ipfsAPI(config.nodes[1]);
     await Promise.mapSeries(ctx.hashes, async hash => ipfs.object.stat(hash));
   }).timeout(default_delay * 2);
+
 
 });
