@@ -25,6 +25,7 @@ install:
 
 before_script:
     - echo IPFS_NODES=http://localhost:5001, https://ipfs.chronobank.io > .env
+    - echo SM_EVENTS=sethash:newHash:oldHash >> .env
     - ipfs daemon > /dev/null &
     - cd $TRAVIS_BUILD_DIR/node_modules/middleware_eth.blockProcessor && npm install
     - cd $TRAVIS_BUILD_DIR/node_modules/middleware_eth.blockProcessor && pm2 start ipcConverter.js
