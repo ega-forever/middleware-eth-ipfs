@@ -1,15 +1,30 @@
+/**
+ * Copyright 2017–2018, LaborX PTY
+ * Licensed under the AGPL Version 3 license.
+ * @author Egor Zuev <zyev.egor@gmail.com>
+ */
+
 require('dotenv/config');
 
 const config = require('../config'),
   expect = require('chai').expect,
   generateRandomString = require('./helpers/generateRandomString'),
   ipfsAPI = require('ipfs-api'),
-  pinModel = require('../models/pinModel'),
+  eventsModelsBuilder = require('../utils/eventsModelsBuilder'),
   _ = require('lodash'),
+  requireAll = require('require-all'),
   Promise = require('bluebird'),
   moment = require('moment'),
   parser = require('cron-parser'),
+  base58tobytes32 = require('../utils/base58toBytes32'),
   mongoose = require('mongoose'),
+  contract = require('truffle-contract'),
+  contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
+    dirname: config.smartContracts.path,
+    filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/,
+    resolve: Contract => contract(Contract)
+  }),
+  eventModels = eventsModelsBuilder(contracts),
   ctx = {};
 
 describe('core/ipfs', function () {
@@ -25,11 +40,11 @@ describe('core/ipfs', function () {
 
   const default_delay = moment(
     new Date(parser.parseExpression(config.schedule.job).next().toString())
-  ).add(300, 'seconds').diff(new Date());
+  ).add(120, 'seconds').diff(new Date());
 
-  it('add 100 new records to ipfs', async () => {
+  it('add 10 new records to ipfs', async () => {
 
-    let objs = _.chain(new Array(100))
+    let objs = _.chain(new Array(10))
       .map(() => ({
           Data: new Buffer(generateRandomString()),
           Links: []
@@ -37,29 +52,27 @@ describe('core/ipfs', function () {
       )
       .value();
 
-    const ipfs_stack = config.nodes.map(node => ipfsAPI(node));
+    const ipfs = ipfsAPI(config.nodes[0]);
 
-    let results = await Promise.all(ipfs_stack.map(async function (ipfs) {
-      return await Promise.mapSeries(objs, rec =>
+    let results = await Promise.mapSeries(objs, rec =>
         ipfs.object.put(rec),
-        {concurrency: 20}
-      )
-    }));
+      {concurrency: 5}
+    );
 
     ctx.hashes = _.chain(results)
       .flattenDeep()
       .map(r => r.toJSON().multihash)
       .uniq()
-      .value()
+      .value();
 
   });
 
   it('add hashes to mongo', async () => {
     await Promise.delay(10000);
-
-    let data = await Promise.mapSeries(ctx.hashes, h =>
-      (new pinModel({
-        hash: h
+    let data = await Promise.mapSeries(ctx.hashes, hash =>
+      (new eventModels.sethash({
+        newHash: base58tobytes32(hash),
+        controlIndexHash: base58tobytes32(hash)
       })).save()
     );
 
@@ -68,31 +81,20 @@ describe('core/ipfs', function () {
 
   });
 
+
   it('validate hashes in mongo', async () => {
-    ctx.pins = await pinModel.find({
-      hash: {$in: ctx.hashes}
+    ctx.pins = await eventModels.sethash.find({
+      newHash: {$in: ctx.hashes}
     });
 
-    expect(ctx.pins.length).to.equal(ctx.hashes.length);
-
+    expect(ctx.hashes.length).to.equal(ctx.hashes.length);
   });
 
   it('validate ping result of daemon', async () => {
     await Promise.delay(default_delay);
-
-    let result = await pinModel.find({
-      hash: {$in: ctx.hashes}
-    });
-
-    let size = _.chain(result)
-      .reject(r =>
-        _.isEqual(r.created, r.updated)
-      )
-      .size()
-      .value();
-
-    expect(size).to.equal(ctx.hashes.length);
-
+    const ipfs = ipfsAPI(config.nodes[1]);
+    await Promise.mapSeries(ctx.hashes, async hash => ipfs.object.stat(hash));
   }).timeout(default_delay * 2);
+
 
 });

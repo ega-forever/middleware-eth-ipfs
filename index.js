@@ -1,6 +1,12 @@
 /**
+ * Copyright 2017–2018, LaborX PTY
+ * Licensed under the AGPL Version 3 license.
+ * @author Egor Zuev <zyev.egor@gmail.com>
+ */
+
+/**
  * Middleware service for maintaining records in IPFS
- * See required modules 
+ * See required modules
  * models/pinModel {@link models/pinModel}
  * @module Chronobank/eth-ipfs
  * @requires models/pinModel
@@ -9,15 +15,19 @@
  */
 
 const config = require('./config'),
-  _ = require('lodash'),
   Promise = require('bluebird'),
   mongoose = require('mongoose'),
-  pinModel = require('./models/pinModel'),
-  scheduleService = require('./services/scheduleService'),
-  bytes32toBase58 = require('./helpers/bytes32toBase58'),
+  fetchHashesService = require('./services/fetchHashesService'),
+  schedule = require('node-schedule'),
+  ipfsAPI = require('ipfs-api'),
   bunyan = require('bunyan'),
-  log = bunyan.createLogger({name: 'core.balanceProcessor'}),
-  amqp = require('amqplib');
+  requireAll = require('require-all'),
+  _ = require('lodash'),
+  pinModel = require('./models/pinModel'),
+  contract = require('truffle-contract'),
+  pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
+  eventsModelsBuilder = require('./utils/eventsModelsBuilder'),
+  log = bunyan.createLogger({name: 'core.balanceProcessor'});
 
 mongoose.Promise = Promise;
 mongoose.connect(config.mongo.data.uri, {useMongoClient: true});
@@ -29,65 +39,71 @@ mongoose.connection.on('disconnected', function () {
 
 let init = async () => {
 
-  /** @const {string} */
-  const defaultQueue = `app_${config.rabbit.serviceName}.ipfs`;
+  const contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
+    dirname: config.smartContracts.path,
+    filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/,
+    resolve: Contract => contract(Contract)
+  });
 
-  /**
-   * Establish AMQP connection
-   * @const {Object} 
-   */
-  let conn = await amqp.connect(config.rabbit.url)
-    .catch(() => {
-      log.error('rabbitmq is not available!');
-      process.exit(0);
+  let events = eventsModelsBuilder(contracts);
+
+  const ipfsStack = config.nodes.map(node => ipfsAPI(node));
+  let isPending = false;
+  let rule = new schedule.RecurrenceRule();
+  _.merge(rule, config.schedule.job);
+
+  schedule.scheduleJob(rule, async () => {
+
+    if (isPending)
+      return;
+
+    log.info('pinning...');
+    isPending = true;
+
+    let records = await Promise.mapSeries(config.events, async event =>
+      events[event.eventName] ?
+        await fetchHashesService(events[event.eventName], event.newHashField, event.oldHashField) : []
+    );
+
+    records = _.chain(records)
+      .flattenDeep()
+      .uniq()
+      .compact()
+      .value();
+
+    const otherPins = await pinModel.find({
+      $or: [
+        {
+          created: {
+            $gte: new Date(Date.now() - 30 * 24 * 3600000)
+          }
+        },
+        {
+          created: {
+            $lt: new Date(Date.now() - 30 * 24 * 3600000)
+          },
+          fail_tries: {$lt: 100}
+        }
+      ],
+      hash: {$nin: records}
     });
 
-  let channel = await conn.createChannel();
+    records = _.chain(otherPins)
+      .map(pin => pin.hash)
+      .union(records)
+      .uniq()
+      .value();
 
-  channel.on('close', () => {
-    log.error('rabbitmq process has finished!');
-    process.exit(0);
-  });
+    const pinResult = await pinOrRestoreHashService(records, ipfsStack);
 
-  await channel.assertExchange('events', 'topic', {durable: false});
-  await channel.assertQueue(defaultQueue);
-
-  /** Run through the available contracts and binds to appropriate queues */
-  for (let contract of config.contracts)
-    await channel.bindQueue(defaultQueue, 'events', `${config.rabbit.serviceName}_chrono_sc.${contract.eventName.toLowerCase()}`);
-
-  channel.consume(defaultQueue, async (data) => {
-    try {
-      let event = JSON.parse(data.content.toString());
-
-      let eventDefinition = _.chain(config.contracts)
-        .find(ev=>ev.eventName.toLowerCase() === event.name.toLowerCase())
-        .pick(['newHashField', 'oldHashField'])
-        .value();
-
-      let hash = _.get(event, `payload.${eventDefinition.newHashField}`);
-      let oldHash = _.get(event, `payload.${eventDefinition.oldHashField}`);
-
-      if (hash)
-        await pinModel.update(
-          oldHash ? {hash: bytes32toBase58(oldHash)} : {},
-          {
-            $set: {
-              updated: Date.now(),
-              hash: bytes32toBase58(hash)
-            }
-          },
-          {upsert: true, setDefaultsOnInsert: true}
-        );
-
-    } catch (e) {
-      log.error(e);
+    if (pinResult.inactiveHashes) {
+      log.info('inactive hashes count: ', pinResult.inactiveHashes.length);
+      log.info('inactive hashes: ', pinResult.inactiveHashes);
     }
 
-    channel.ack(data);
-  });
+    isPending = false;
 
-  scheduleService();
+  });
 
 };
 
