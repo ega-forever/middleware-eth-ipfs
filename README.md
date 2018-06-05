@@ -10,19 +10,18 @@ This module is a part of middleware services. You can install it in 2 ways:
 2) by hands: just clone the repo, do 'npm install', set your .env - and you are ready to go
 
 #### About
-This module is used to maintain user profiles in ipfs.
+This module is used to maintain the ipfs hashes.
 
 
 #### How does it work
 
-This how does it work:
 1) this module listen to the specified events in config.
 For instance:
 ```
 setHash:newHash:oldHash
 ```
 where setHash - is event name, newHash - is a new encoded multihash for ipfs, and old hash - is an old hash (this arg is optional).
-2) it grab the ipfs hash and put it to pins collection. In case, the 3 argument (in our case oldHash) is present - the ipfs module will search a record with this hash in collection, and replace it with new hash(in our example - newHash)
+2) it grabs the ipfs hash and put it to pins collection. In case, the 3 argument (in our case oldHash) is present - the ipfs module will search a record with this hash in collection, and replace it with new hash(in our example - newHash)
 3) each time interval - module tries to ping addresses (which are regsitered in pins collection)
 
 
