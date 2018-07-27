@@ -8,7 +8,7 @@ const _ = require('lodash'),
   bunyan = require('bunyan'),
   pinModel = require('../models/pinModel'),
   config = require('../config'),
-  base58toBytes32 = require('../utils/base58toBytes32'),
+  base58toBytes32 = require('../utils/encode/base58toBytes32'),
   Promise = require('bluebird'),
   log = bunyan.createLogger({name: 'plugins.ipfs.scheduleService'});
 
