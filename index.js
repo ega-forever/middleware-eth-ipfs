@@ -64,16 +64,11 @@ let init = async () => {
 
   records = _.flattenDeep(records);
 
-  console.log(records.length);
+  console.log(records.length);//todo refill
   process.exit(0);
 
-  records = _.chain(records)
-    .flattenDeep()
-    .uniq()
-    .compact()
-    .value();
 
-  const otherPins = await pinModel.find({
+/*  const otherPins = await pinModel.find({
     $or: [
       {
         created: {
@@ -88,7 +83,7 @@ let init = async () => {
       }
     ],
     hash: {$nin: records}
-  });
+  });*/
 
   records = _.chain(otherPins)
     .map(pin => pin.hash)
@@ -96,12 +91,12 @@ let init = async () => {
     .uniq()
     .value();
 
-  const pinResult = await pinOrRestoreHashService(records, ipfsStack);
+/*  const pinResult = await pinOrRestoreHashService(records, ipfsStack);
 
   if (pinResult.inactiveHashes) {
     log.info('inactive hashes count: ', pinResult.inactiveHashes.length);
     log.info('inactive hashes: ', pinResult.inactiveHashes);
-  }
+  }*/
 
   isPending = false;
 

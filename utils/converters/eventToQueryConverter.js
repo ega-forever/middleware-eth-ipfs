@@ -2,16 +2,17 @@ const _ = require('lodash'),
   BigNumber = require('bignumber.js'),
   smEvents = require('../../factories/smartContractsEventsFactory');
 
+let schemaFields = ['blockNumber', 'txIndex', 'index', 'signature'];
+
 const topicToArg = (topic, topicIndex) => {
   const bn = BigNumber(topic, 16);
   return {
-    e: bn.e,
     c: bn.c,
     index: topicIndex
   };
 };
 
-function deepMap (obj, cb, keyPath) {
+function deepMap(obj, cb, keyPath) {
 
   let out = _.isArray(obj) ? [] : {};
   let argNotFound = false;
@@ -23,24 +24,35 @@ function deepMap (obj, cb, keyPath) {
 
     let val;
 
-    if (obj[k] !== null && typeof obj[k] === 'object') 
+    if (obj[k] !== null && typeof obj[k] === 'object')
 
       if (!keyPath) {
         val = deepMap(obj[k], cb, [k]);
+      } else if (parseInt(k) >= 0) {
+
+        let childPath = [k];
+        keyPath.push(childPath);
+        val = deepMap(obj[k], cb, keyPath);
+
+      } else if (_.isArray(_.last(keyPath))) {
+
+        const childPath = _.last(keyPath);
+        childPath.push(k);
+        val = deepMap(obj[k], cb, childPath);
+
       } else {
         keyPath.push(k);
         val = deepMap(obj[k], cb, keyPath);
-      }
-    else {
+      } else {
       let fullPath = [];
       fullPath.push(k);
       if (keyPath)
         fullPath.push(...keyPath);
       val = cb(obj[k], fullPath);
 
-      if (_.find(fullPath, key => key.indexOf('$') === 0) && val.converted) 
+      if (_.isObject(val) && _.find(fullPath, key => key.indexOf('$') === 0) && val.converted)
         val = {args: {$elemMatch: val.arg}};
-      
+
     }
 
 
@@ -67,7 +79,7 @@ function deepMap (obj, cb, keyPath) {
   return argNotFound ? null : out;
 }
 
-function replace (criteria) {
+function replace(criteria) {
 
   let paths = _.chain(criteria).keys()
     .filter(key =>
@@ -76,6 +88,10 @@ function replace (criteria) {
     .value();
 
   return _.transform(paths, (result, path) => {
+
+    if (path === '$and')
+      return criteria[path].map(item => replace(item));
+
 
     if (criteria[path].$in) {
 
@@ -98,7 +114,6 @@ function replace (criteria) {
           if (!item.args)
             return item;
 
-          item.args.$elemMatch.e = {$ne: item.args.$elemMatch.e};
           item.args.$elemMatch.c = {$ne: item.args.$elemMatch.c};
 
           return item;
@@ -113,25 +128,32 @@ function replace (criteria) {
     if (path === '$or')
       criteria.$or = _.chain(criteria.$or)
         .map(item => {
-          let pair = _.toPairs(item)[0];
+          return _.chain(item).toPairs()
+            .map(pair => {
 
-          if (!pair[1].args) 
-            return _.fromPairs([pair]);
-          
+              if (!pair[1].args) {
 
+                if(!schemaFields.includes(pair[0]))
+                  return replace(_.fromPairs([pair]));
 
-          return pair[1];
+                return _.fromPairs([pair]);
+              }
+
+              return pair[1];
+            })
+            .transform((result, data) => {
+              _.merge(result, data)
+            }, {})
+            .value()
         })
         .value();
-
-    
 
 
   }, criteria);
 }
 
 
-const converter = (eventName, query) => {
+const converter = (eventName, query, useSchemaFields = true) => {
 
   eventName = eventName.toLowerCase();
 
@@ -145,8 +167,17 @@ const converter = (eventName, query) => {
     .map(event => {
       let criteria = deepMap(query, (val, keyPath) => {
 
-        let eventParamIndex = _.chain(keyPath)
-          .reverse()
+        let reverseKeyPath = _.reverse(keyPath);
+
+        let isSchemaField = _.chain(reverseKeyPath)
+          .find(key => schemaFields.includes(key))
+          .thru(key => !!key)
+          .value();
+
+        if (isSchemaField)
+          return val;
+
+        let eventParamIndex = _.chain(reverseKeyPath)
           .find(name => _.find(event.inputs, {name: name}))
           .thru(name => _.findIndex(event.inputs, {name: name}))
           .value();
