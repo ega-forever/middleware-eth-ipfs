@@ -4,12 +4,6 @@
  * @author Egor Zuev <zyev.egor@gmail.com>
  */
 
-/**
- * Ping IPFS by specified time in config
- * @module services/scheduleService
- * @see module:config
- */
-
 const _ = require('lodash'),
   pinModel = require('../models/pinModel'),
   Promise = require('bluebird'),
@@ -18,9 +12,16 @@ const _ = require('lodash'),
   eventToQueryConverter = require('../utils/converters/eventToQueryConverter'),
   queryResultToEventArgsConverter = require('../utils/converters/queryResultToEventArgsConverter'),
   bytes32toBase58 = require('../utils/encode/bytes32toBase58'),
-  PREFETCH_LIMIT = 10;
+  PREFETCH_LIMIT = 100;
 
-
+/**
+ * @function
+ * @description update ethPins collection with actual hashes
+ * @param eventName - the name of sm event
+ * @param newHashName - the name of param, which holds hash in bytes32 representation
+ * @param query - the query sub request to filter actual records (optional)
+ * @return {Promise<void>}
+ */
 const updateState = async (eventName, newHashName, query = {}) => {
   let actualRecordsQuery = eventToQueryConverter(eventName, query);
 
@@ -46,8 +47,6 @@ const updateState = async (eventName, newHashName, query = {}) => {
               hash: hash,
               bytes32: base58toBytes32(hash),
               updated: Date.now(),
-              payload: null,
-              fail_tries: 0
             }
           },
           upsert: true
@@ -60,28 +59,25 @@ const updateState = async (eventName, newHashName, query = {}) => {
   });
 };
 
+/**
+ * @function
+ * @description update ethPins collection with actual hashes, including outdated hashes.
+ * @param eventName - the name of sm event
+ * @param newHashName - the name of param, which holds hash in bytes32 representation
+ * @param oldHashName - the name of param, which holds old hash in bytes32 representation (which shouldn't be maintained anymore). The param is optional
+ * @return {Promise<void>}
+ */
+const updateStateWithOutdated = async (eventName, newHashName, oldHashName) => {
 
-const udpateStateWithOutdated = async ()=>{
+  let outdatedRecordsQuery = eventToQueryConverter(eventName, {[oldHashName]: {$nin: ['0x1000000000000000000000000000000000000000000000000000000000000000', '0x0000000000000000000000000000000000000000000000000000000000000000']}});
+  let outdatedRecordsCount = await txLogModel.count(outdatedRecordsQuery);
 
-};
-
-
-module.exports = async (eventName, newHashName, oldHashName) => {
-
-  //let queryWithOutDated = {};
-
-  if (oldHashName) {
-    let outdatedRecordsQuery = eventToQueryConverter(eventName, {[oldHashName]: {$ne: '0x0000000000000000000000000000000000000000000000000000000000000000'}});
-
-    let outdatedRecordsCount = await txLogModel.count(outdatedRecordsQuery);
-
-    return await Promise.mapSeries(_.range(0, outdatedRecordsCount, PREFETCH_LIMIT), async startIndex => {
+  outdatedRecordsCount === 0 ? await updateState(eventName, newHashName) :
+    await Promise.mapSeries(_.range(0, outdatedRecordsCount, PREFETCH_LIMIT), async startIndex => {
 
       let outDatedLogRecords = await txLogModel.find(outdatedRecordsQuery).sort({blockNumber: 1}).skip(startIndex).limit(PREFETCH_LIMIT);
-      let minOutDateBlockNumber = _.chain(outDatedLogRecords).last().get('blockNumber', 0).value();
-      let maxOutDateBlockNumber = _.chain(outDatedLogRecords).head().get('blockNumber', 0).value();
-
-      console.log(startIndex, minOutDateBlockNumber, maxOutDateBlockNumber)
+      let minOutDateBlockNumber = _.chain(outDatedLogRecords).head().get('blockNumber', 0).value();
+      let maxOutDateBlockNumber = _.chain(outDatedLogRecords).last().get('blockNumber', 0).value();
 
       let outdatedRecords = queryResultToEventArgsConverter(eventName, outDatedLogRecords);
 
@@ -91,59 +87,27 @@ module.exports = async (eventName, newHashName, oldHashName) => {
         .uniqBy(oldHashName)
         .value();
 
-      const removed = await pinModel.remove({bytes32: {$in: outdatedHashesInBlocks.map(item=>item[oldHashName])}});
-
-      console.log(removed.result)
+      await pinModel.remove({bytes32: {$in: outdatedHashesInBlocks.map(item => item[oldHashName])}});
 
       let queryWithOutDated = {
         $or: outdatedHashesInBlocks.map(item => ({
           [newHashName]: item[oldHashName],
-          blockNumber: {$gt: item.blockNumber, $lte: maxOutDateBlockNumber} //todo may be do {$gt: blocknumberMin, $lt: blocknumberMax}
+          blockNumber: {$gt: item.blockNumber, $lte: maxOutDateBlockNumber}
         }))
       };
 
       queryWithOutDated.$or.push({
-          [newHashName]: {$nin: outdatedHashesInBlocks.map(item => item[oldHashName])},
-          blockNumber: {$gte: minOutDateBlockNumber, $lte: maxOutDateBlockNumber}
-        });
+        [newHashName]: {$nin: outdatedHashesInBlocks.map(item => item[oldHashName])},
+        blockNumber: {$gte: minOutDateBlockNumber, $lte: maxOutDateBlockNumber}
+      });
 
       return await updateState(eventName, newHashName, queryWithOutDated);
-
     });
 
-    /*    outdatedRecords = _.flatten(outdatedRecords);
-
-        // let outdatedRecords = await txLogModel.find(outdatedRecordsQuery);
-        outdatedRecords = queryResultToEventArgsConverter(eventName, outdatedRecords);
-
-        let outdatedHashesInBlocks = _.chain(outdatedRecords)
-          .map(rec => ({[oldHashName]: rec[oldHashName], blockNumber: rec.includedIn.blockNumber}))
-          .orderBy('blockNumber', 'desc')
-          .uniqBy(oldHashName)
-          .value();
-
-        queryWithOutDated = {
-          $or: outdatedHashesInBlocks.map(item => ({
-            [newHashName]: item[oldHashName],
-            blockNumber: {$gt: item.blockNumber}
-          }))
-        };
-
-        queryWithOutDated.$or.push(
-          {[newHashName]: {$nin: outdatedHashesInBlocks.map(item => item[oldHashName])}}
-        );*/
-  }
-
-  await updateState(eventName, newHashName);
-
-/*  let actualRecordsQuery = eventToQueryConverter(eventName, Object.keys(queryWithOutDated).length ? queryWithOutDated : {});
-  let actualRecords = await txLogModel.find(actualRecordsQuery);
+};
 
 
-  return _.chain(actualRecords)
-    .thru(records => queryResultToEventArgsConverter(eventName, records))
-    .map(item => item[newHashName] ? bytes32toBase58(item[newHashName]) : null)
-    .compact()
-    .uniq()
-    .value();*/
+module.exports = async (eventName, newHashName, oldHashName) => {
+  oldHashName ? await updateStateWithOutdated(eventName, newHashName, oldHashName) :
+    await updateState(eventName, newHashName);
 };

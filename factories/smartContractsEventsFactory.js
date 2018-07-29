@@ -2,15 +2,12 @@ const _ = require('lodash'),
   contract = require('truffle-contract'),
   requireAll = require('require-all'),
   config = require('../config'),
-  path = require('path'),
   fs = require('fs');
-
 let contractsRaw = {};
-let contractsPath = path.join(__dirname, '../node_modules', 'chronobank-smart-contracts/build/contracts');
 
-if (fs.existsSync(contractsPath))
+if (fs.existsSync(config.smartContracts.path))
   contractsRaw = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
-    dirname: contractsPath,
+    dirname: config.smartContracts.path,
     filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/
   });
 
@@ -47,7 +44,11 @@ let rawContractEvents = _.chain(contractsRaw)
   .flattenDeep()
   .value();
 
-
+/**
+ * @function
+ * @description return available events for the specified network in config
+ * @type {{events: *, address: *}}
+ */
 module.exports = {
   events: _.chain(truffleContractEvents)
     .union(rawContractEvents)

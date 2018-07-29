@@ -12,7 +12,8 @@
     "lodash": "^4.17.4",
     "mongoose": "^4.11.11",
     "node-schedule": "^1.2.3",
-    "require-all": "^2.2.0"
+    "require-all": "^2.2.0",
+    "semaphore": "^1.1.0"
   },
   "scripts": {
     "lint": "node ./node_modules/eslint/bin/eslint.js -c .eslintrc.js --ext .js --fix --ignore-path .eslintignore .",

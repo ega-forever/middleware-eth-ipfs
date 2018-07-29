@@ -133,7 +133,7 @@ function replace(criteria) {
 
               if (!pair[1].args) {
 
-                if(!schemaFields.includes(pair[0]))
+                if (!schemaFields.includes(pair[0]))
                   return replace(_.fromPairs([pair]));
 
                 return _.fromPairs([pair]);
@@ -142,9 +142,9 @@ function replace(criteria) {
               return pair[1];
             })
             .transform((result, data) => {
-              _.merge(result, data)
+              _.merge(result, data);
             }, {})
-            .value()
+            .value();
         })
         .value();
 
@@ -169,13 +169,15 @@ const converter = (eventName, query, useSchemaFields = true) => {
 
         let reverseKeyPath = _.reverse(keyPath);
 
-        let isSchemaField = _.chain(reverseKeyPath)
-          .find(key => schemaFields.includes(key))
-          .thru(key => !!key)
-          .value();
+        if (useSchemaFields) {
+          let isSchemaField = _.chain(reverseKeyPath)
+            .find(key => schemaFields.includes(key))
+            .thru(key => !!key)
+            .value();
 
-        if (isSchemaField)
-          return val;
+          if (isSchemaField)
+            return val;
+        }
 
         let eventParamIndex = _.chain(reverseKeyPath)
           .find(name => _.find(event.inputs, {name: name}))

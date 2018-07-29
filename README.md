@@ -6,7 +6,7 @@ Middleware service for maintaining records in ipfs
 
 This module is a part of middleware services. You can install it in 2 ways:
 
-1) through core middleware installer  [middleware installer](https://github.com/ChronoBank/middleware)
+1) through  [middleware installer](https://github.com/ChronoBank/middleware)
 2) by hands: just clone the repo, do 'npm install', set your .env - and you are ready to go
 
 #### About
@@ -24,6 +24,12 @@ where setHash - is event name, newHash - is a new encoded multihash for ipfs, an
 2) it grabs the ipfs hash and put it to pins collection. In case, the 3 argument (in our case oldHash) is present - the ipfs module will search a record with this hash in collection, and replace it with new hash(in our example - newHash)
 3) each time interval - module tries to ping addresses (which are regsitered in pins collection)
 
+
+### Where does it take data?
+The data, which use this plugin is located in ethTxLogs collection, which is maintained by [eth-blockprocessor service](https://github.com/ChronoBank/middleware-eth-blockprocessor).
+
+### How do I need to store IPFS hashes in event args?
+You should convert your base58 hash to bytes32 representation. Please refer to `utils/encode` directory for converter implementation.
 
 
 ##### сonfigure your .env
@@ -53,11 +59,11 @@ The options are presented below:
 | MONGO_DATA_URI   | the URI string for mongo connection, which holds data collections (for instance, processed block's height). In case, it's not specified, then default MONGO_URI connection will be used)
 | MONGO_DATA_COLLECTION_PREFIX   | the collection prefix for data collections in mongo (If not specified, then the default MONGO_COLLECTION_PREFIX will be used)
 | IPFS_NODES   | should contain a comma separated uri connection strings for ipfs nodes
-| SCHEDULE_JOB   | a configuration for ipfs pin plugin in a cron based format
+| SCHEDULE_JOB   | a configuration for ipfs pin and update actual hashes jobs in a cron based format
+| SCHEDULE_PIN_JOB   | a configuration for ipfs pin plugin in a cron based format (if not specified, then SCHEDULE_JOB param will be used)
+| SCHEDULE_FETCH_JOB   | a configuration for ipfs update actual hashes job in a cron based format (if not specified, then SCHEDULE_JOB param will be used)
 | SCHEDULE_CHECK_TIME   | an option, which defines how old should be records, which have to be pinned
-| RABBIT_URI   | rabbitmq URI connection string
-| RABBIT_SERVICE_NAME   | namespace for all rabbitmq queues, like 'app_eth_transaction'
-| NETWORK   | network name (alias)- is used for connecting via ipc (see block processor section)
+| NETWORK_ID   | the network id (1-mainnet, 4-rinkeby and so on)
 | SM_EVENTS   | smart contract's event definition for hash create/update (ipfs multihash). Has the following signature: 'event_name:new_hash_field:old_hash_field'. 3 argument (old_hash_field) is optional
 
 License

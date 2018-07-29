@@ -6,27 +6,22 @@
 
 /**
  * Middleware service for maintaining records in IPFS
- * See required modules
- * models/pinModel {@link models/pinModel}
  * @module Chronobank/eth-ipfs
- * @requires models/pinModel
- * @requires services/scheduleService
- * @requires helpers/bytes32toBase58
  */
 
 const config = require('./config'),
   Promise = require('bluebird'),
+  cronParser = require('cron-parser'),
   mongoose = require('mongoose'),
   fetchHashesService = require('./services/fetchHashesService'),
   schedule = require('node-schedule'),
   ipfsAPI = require('ipfs-api'),
   bunyan = require('bunyan'),
   _ = require('lodash'),
-  pinModel = require('./models/pinModel'),
+  sem = require('semaphore')(1),
   smartContractsEventsFactory = require('./factories/smartContractsEventsFactory'),
   pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
-  eventsModelsBuilder = require('./utils/eventsModelsBuilder'),
-  log = bunyan.createLogger({name: 'core.balanceProcessor'});
+  log = bunyan.createLogger({name: 'plugins.ipfs'});
 
 mongoose.Promise = Promise;
 mongoose.connect(config.mongo.data.uri, {useMongoClient: true});
@@ -38,70 +33,53 @@ mongoose.connection.on('disconnected', function () {
 
 let init = async () => {
 
-
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
-  let isPending = false;
-  let rule = new schedule.RecurrenceRule();
-  _.merge(rule, config.schedule.job);
+  const rulePin = new schedule.RecurrenceRule();
+  const ruleFetch = new schedule.RecurrenceRule();
 
-//  schedule.scheduleJob(rule, async () => {
+  _.merge(rulePin, _.pick(cronParser.parseExpression(config.schedule.pinJob)._fields, ['second', 'minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek']));
+  _.merge(ruleFetch, _.pick(cronParser.parseExpression(config.schedule.fetchJob)._fields, ['second', 'minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek']));
 
-  if (isPending)
-    return;
 
-  log.info('pinning...');
-  isPending = true;
+  let isFetchHashesPending = false;
+  let isPinHashesPending = false;
 
-  let records = await Promise.mapSeries(config.events, async event => {
+  schedule.scheduleJob(ruleFetch, async () => {
+    if (isFetchHashesPending)
+      return;
 
-    let definition = _.find(smartContractsEventsFactory.events, ev=> ev.name.toLowerCase() === event.eventName);
+    isFetchHashesPending = true;
+    sem.take(async () => {
+      log.info('start scanning cache for hashes');
+      await Promise.mapSeries(config.events, async event => {
 
-    if(!definition)
-      return [];
+        let definition = _.find(smartContractsEventsFactory.events, ev => ev.name.toLowerCase() === event.eventName);
+        if (!definition)
+          return [];
 
-    return await fetchHashesService(event.eventName, event.newHashField, event.oldHashField);
+        return await fetchHashesService(event.eventName, event.newHashField, event.oldHashField);
+      });
+
+      log.info('successfully cached records');
+      isFetchHashesPending = false;
+      sem.leave();
+    });
   });
 
-  records = _.flattenDeep(records);
 
-  console.log(records.length);//todo refill
-  process.exit(0);
+  schedule.scheduleJob(rulePin, async () => {
+    if (isPinHashesPending)
+      return;
 
-
-/*  const otherPins = await pinModel.find({
-    $or: [
-      {
-        created: {
-          $gte: new Date(Date.now() - 30 * 24 * 3600000)
-        }
-      },
-      {
-        created: {
-          $lt: new Date(Date.now() - 30 * 24 * 3600000)
-        },
-        fail_tries: {$lt: 100}
-      }
-    ],
-    hash: {$nin: records}
-  });*/
-
-  records = _.chain(otherPins)
-    .map(pin => pin.hash)
-    .union(records)
-    .uniq()
-    .value();
-
-/*  const pinResult = await pinOrRestoreHashService(records, ipfsStack);
-
-  if (pinResult.inactiveHashes) {
-    log.info('inactive hashes count: ', pinResult.inactiveHashes.length);
-    log.info('inactive hashes: ', pinResult.inactiveHashes);
-  }*/
-
-  isPending = false;
-
-  //});
-
+    isPinHashesPending = true;
+    sem.take(async () => {
+      log.info('start pinning records');
+      await pinOrRestoreHashService(ipfsStack);
+      log.info('successfully pinned records');
+      isPinHashesPending = false;
+      sem.leave();
+    });
+  });
 };
 
 module.exports = init();

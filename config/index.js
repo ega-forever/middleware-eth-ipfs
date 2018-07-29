@@ -23,7 +23,8 @@ const config = {
     }
   },
   schedule: {
-    job: process.env.SCHEDULE_JOB || '30 * * * * *'
+    pinJob: process.env.SCHEDULE_JOB ||  process.env.SCHEDULE_PIN_JOB || '30 * * * * *',
+    fetchJob: process.env.SCHEDULE_JOB || process.env.SCHEDULE_FETCH_JOB || '30 * * * * *'
   },
   nodes: process.env.IPFS_NODES ? _.chain(process.env.IPFS_NODES)
     .split(',')
