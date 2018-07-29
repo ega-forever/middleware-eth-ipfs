@@ -23,11 +23,8 @@ const config = {
     }
   },
   schedule: {
-    job: process.env.SCHEDULE_JOB || '30 * * * * *'
-  },
-  web3: {
-    network: process.env.NETWORK || 'development',
-    uri: `${/^win/.test(process.platform) ? '\\\\.\\pipe\\' : ''}${process.env.WEB3_URI || `/tmp/${(process.env.NETWORK || 'development')}/geth.ipc`}`
+    pinJob: process.env.SCHEDULE_JOB ||  process.env.SCHEDULE_PIN_JOB || '30 * * * * *',
+    fetchJob: process.env.SCHEDULE_JOB || process.env.SCHEDULE_FETCH_JOB || '30 * * * * *'
   },
   nodes: process.env.IPFS_NODES ? _.chain(process.env.IPFS_NODES)
     .split(',')
@@ -39,9 +36,8 @@ const config = {
     [{'host': 'localhost', 'port': '5001', 'protocol': 'http'}],
   smartContracts: {
     path: process.env.SMART_CONTRACTS_PATH || path.join(__dirname, '../node_modules/chronobank-smart-contracts/build/contracts'),
-    events: {
-      ttl: parseInt(process.env.SMART_CONTRACTS_EVENTS_TTL) || false
-    }
+    networkId: process.env.SMART_CONTRACTS_NETWORK_ID || '4',
+    eventContract: process.env.SMART_CONTRACTS_EVENT_CONTRACT || 'MultiEventsHistory'
   },
   events: process.env.SM_EVENTS ? _.chain(process.env.SM_EVENTS)
     .split(',')

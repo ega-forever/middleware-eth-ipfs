@@ -16,11 +16,9 @@ const mongoose = require('mongoose'),
 const Pin = new mongoose.Schema({
   hash: {type: String, required: true, unique: true},
   bytes32: {type: String, required: true, unique: true},
-  created: {type: Date, required: true, default: Date.now},
   updated: {type: Date, required: true, default: Date.now},
   payload: {type: String},
-  fail_tries: {type: Number, default: 0},
-  network: {type: String}
+  fail_tries: {type: Number, default: 0}
 });
 
 module.exports = mongoose.model(`${config.mongo.data.collectionPrefix}Pin`, Pin);
