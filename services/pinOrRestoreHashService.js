@@ -8,7 +8,8 @@ const _ = require('lodash'),
   bunyan = require('bunyan'),
   pinModel = require('../models/pinModel'),
   Promise = require('bluebird'),
-  log = bunyan.createLogger({name: 'plugins.ipfs.pinOrRestoreHashService'}),
+  config = require('../config'),
+  log = bunyan.createLogger({name: 'plugins.ipfs.pinOrRestoreHashService', level: config.logs.level}),
   PREFETCH_LIMIT = 100,
   TIMEOUT_DELAY = 5000;
 

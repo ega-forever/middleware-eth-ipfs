@@ -8,16 +8,15 @@ require('dotenv/config');
 process.env.LOG_LEVEL = 'error';
 
 const config = require('../config'),
-  //fuzzTests = require('./fuzz'),
-  //performanceTests = require('./performance'),
+  fuzzTests = require('./fuzz'),
+  performanceTests = require('./performance'),
   featuresTests = require('./features'),
-  //blockTests = require('./blocks'),
+  blockTests = require('./blocks'),
   fs = require('fs-extra'),
   path = require('path'),
   Promise = require('bluebird'),
   ipfsAPI = require('ipfs-api'),
   IPFS = require('ipfs/src/http'),
-  _ = require('lodash'),
   mongoose = require('mongoose'),
   ctx = {};
 
@@ -62,11 +61,11 @@ describe('plugins/ipfs', function () {
   });
 
 
-  //describe('block', () => blockTests(ctx));
+  describe('block', () => blockTests(ctx));
 
-  //describe('performance', () => performanceTests(ctx));
+  describe('performance', () => performanceTests(ctx));
 
-  //describe('fuzz', () => fuzzTests(ctx));
+  describe('fuzz', () => fuzzTests(ctx));
 
   describe('features', () => featuresTests(ctx));
 

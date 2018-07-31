@@ -38,7 +38,7 @@ module.exports = (ctx) => {
         return !!_.find(config.events, ev => ev.eventName === name);
       });
 
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 100; i++) {
 
         const builtArgs = ['0x0'];
         const sortedInputs = _.orderBy(definition.inputs, 'indexed', 'desc');
@@ -88,7 +88,7 @@ module.exports = (ctx) => {
 
     const default_delay = moment(
       new Date(parser.parseExpression(config.schedule.fetchJob).next().toString())
-    ).add(10 * config.events.length, 'seconds').diff(new Date());
+    ).add(100 * config.events.length, 'seconds').diff(new Date());
 
     await Promise.delay(default_delay);
 
@@ -141,32 +141,69 @@ module.exports = (ctx) => {
 
   });
 
-  it('await for records to be pinned by the service', async () => {
+  it('remove random pins', async () => {
 
-    let records = await pinModel.find({});
+    let pinsCount = await pinModel.count();
 
-    for (let i = 0; i < 2 * config.events.length; i++) {
-      const default_delay = moment(
-        new Date(parser.parseExpression(config.schedule.pinJob).next().toString())
-      ).add((records.length * 5), 'seconds').diff(new Date());
-
-      await Promise.delay(default_delay);
+    for (let i = 0; i < _.random(2, parseInt(pinsCount / 2)); i++) {
+      let pin = await pinModel.findOne().skip(i);
+      pin.remove();
     }
 
-    const badRecordsCount = await pinModel.count({
-      $or: [
-        {fail_tries: {$gt: 0}},
-        {payload: null}
-      ]
-    });
+  });
 
-    expect(badRecordsCount).to.eq(0);
+  it('await for hashes to be grabbed by the service again', async () => {
 
-    for (let client of ctx.clients)
-      for (let pin of records) {
-        await Promise.resolve(client.pin.add(pin.hash))
-          .timeout(1000)
+    const default_delay = moment(
+      new Date(parser.parseExpression(config.schedule.fetchJob).next().toString())
+    ).add(100 * config.events.length, 'seconds').diff(new Date());
+
+    await Promise.delay(default_delay);
+
+    let totalRecordsCount = 0;
+
+    for (let event of config.events) {
+
+      let definition = _.find(smartContractsEventsFactory.events, definition => {
+        let name = definition.name.toLowerCase();
+        return !!_.find(config.events, ev => ev.eventName === name);
+      });
+
+
+      let setHashes = await txLogModel.find({
+        address: smartContractsEventsFactory.address,
+        signature: definition.signature
+      });
+
+      let records = queryResultToEventArgsConverter(event.eventName, setHashes);
+
+
+      const actualHashesInBlocks = _.chain(records)
+        .orderBy('includedIn.blockNumber', 'asc')
+        .transform((result, item) => {
+          if (item[event.oldHashField])
+            delete result[item[event.oldHashField]];
+          result[item[event.newHashField]] = 1;
+        }, {})
+        .toPairs()
+        .map(pair => pair[0])
+        .uniq()
+        .value();
+
+
+      for (let hash of actualHashesInBlocks) {
+        let item = _.find(records, {[event.newHashField]: hash});
+        expect(item).to.not.be.undefined;
+        let isExistsInDb = await pinModel.count({bytes32: hash});
+        expect(isExistsInDb).to.eq(1);
       }
+
+      totalRecordsCount += actualHashesInBlocks.length;
+
+    }
+
+    let totalPins = await pinModel.count();
+    expect(totalRecordsCount).to.eq(totalPins);
   });
 
   after(() => {

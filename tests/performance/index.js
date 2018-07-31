@@ -13,7 +13,6 @@ const _ = require('lodash'),
   pinModel = require('../../models/pinModel'),
   base58toBytes32 = require('../../utils/encode/base58toBytes32'),
   fetchHashesService = require('../../services/fetchHashesService'),
-  queryResultToEventArgsConverter = require('../../utils/converters/queryResultToEventArgsConverter'),
   pinOrRestoreHashService = require('../../services/pinOrRestoreHashService'),
   expect = require('chai').expect;
 
@@ -35,7 +34,7 @@ module.exports = (ctx) => {
         return !!_.find(config.events, ev => ev.eventName === name);
       });
 
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 1000; i++) {
 
         const builtArgs = ['0x0'];
         const sortedInputs = _.orderBy(definition.inputs, 'indexed', 'desc');
@@ -84,7 +83,7 @@ module.exports = (ctx) => {
 
   it('validate fetchHashesService function', async () => {
 
-    let totalRecordsCount = 0;
+    let start = Date.now();
 
     await Promise.mapSeries(config.events, async event => {
       let definition = _.find(smartContractsEventsFactory.events, ev => ev.name.toLowerCase() === event.eventName);
@@ -93,68 +92,14 @@ module.exports = (ctx) => {
 
       return await fetchHashesService(event.eventName, event.newHashField, event.oldHashField);
     });
-
-
-    for (let event of config.events) {
-
-      let definition = _.find(smartContractsEventsFactory.events, definition => {
-        let name = definition.name.toLowerCase();
-        return !!_.find(config.events, ev => ev.eventName === name);
-      });
-
-
-      let setHashes = await txLogModel.find({
-        address: smartContractsEventsFactory.address,
-        signature: definition.signature
-      });
-
-      let records = queryResultToEventArgsConverter(event.eventName, setHashes);
-
-
-      const actualHashesInBlocks = _.chain(records)
-        .orderBy('includedIn.blockNumber', 'asc')
-        .transform((result, item) => {
-          if (item[event.oldHashField])
-            delete result[item[event.oldHashField]];
-          result[item[event.newHashField]] = 1;
-        }, {})
-        .toPairs()
-        .map(pair => pair[0])
-        .uniq()
-        .value();
-
-
-      for (let hash of actualHashesInBlocks) {
-        let item = _.find(records, {[event.newHashField]: hash});
-        expect(item).to.not.be.undefined;
-        let isExistsInDb = await pinModel.count({bytes32: hash});
-        expect(isExistsInDb).to.eq(1);
-      }
-
-      totalRecordsCount += actualHashesInBlocks.length;
-
-    }
-
-    let totalPins = await pinModel.count();
-
-    expect(totalRecordsCount).to.eq(totalPins);
-
-
+    expect(Date.now() - start).to.be.below(2000 * config.events.length * config.nodes.length);
   });
 
 
   it('validate pinOrRestoreHashService function', async () => {
-
+    let start = Date.now();
     await pinOrRestoreHashService(ctx.clients);
-
-    const badRecordsCount = await pinModel.count({
-      $or: [
-        {fail_tries: {$gt: 0}},
-        {payload: null}
-      ]
-    });
-
-    expect(badRecordsCount).to.eq(0);
+    expect(Date.now() - start).to.be.below(5000 * 6000 * config.events.length);
   });
 
 

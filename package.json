@@ -32,6 +32,7 @@
     "eslint-plugin-chronobank": "github:chronobank/eslint-plugin-chronobank",
     "fs-extra": "^7.0.0",
     "ipfs": "^0.31.0",
+    "memwatch-next": "^0.3.0",
     "mocha": "^3.5.0",
     "moment": "^2.18.1",
     "uniqid": "^5.0.3"
