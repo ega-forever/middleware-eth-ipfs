@@ -63,8 +63,9 @@ The options are presented below:
 | SCHEDULE_PIN_JOB   | a configuration for ipfs pin plugin in a cron based format (if not specified, then SCHEDULE_JOB param will be used)
 | SCHEDULE_FETCH_JOB   | a configuration for ipfs update actual hashes job in a cron based format (if not specified, then SCHEDULE_JOB param will be used)
 | SCHEDULE_CHECK_TIME   | an option, which defines how old should be records, which have to be pinned
-| NETWORK_ID   | the network id (1-mainnet, 4-rinkeby and so on)
+| SMART_CONTRACTS_NETWORK_ID   | the network id (1-mainnet, 4-rinkeby and so on)
 | SM_EVENTS   | smart contract's event definition for hash create/update (ipfs multihash). Has the following signature: 'event_name:new_hash_field:old_hash_field'. 3 argument (old_hash_field) is optional
+| LOG_LEVEL   | the logging level. Can be 'error' (which prints only errors) or 'info' (prints errors + info logs). Default is 'info' level
 
 License
 ----

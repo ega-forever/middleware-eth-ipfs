@@ -8,7 +8,6 @@ const _ = require('lodash'),
   pinModel = require('../models/pinModel'),
   Promise = require('bluebird'),
   txLogModel = require('../models/txLogModel'),
-  base58toBytes32 = require('../utils/encode/base58toBytes32'),
   eventToQueryConverter = require('../utils/converters/eventToQueryConverter'),
   queryResultToEventArgsConverter = require('../utils/converters/queryResultToEventArgsConverter'),
   bytes32toBase58 = require('../utils/encode/bytes32toBase58'),
@@ -33,7 +32,7 @@ const updateState = async (eventName, newHashName, query = {}) => {
 
     const hashes = _.chain(actualRecords)
       .thru(records => queryResultToEventArgsConverter(eventName, records))
-      .map(item => item[newHashName] ? bytes32toBase58(item[newHashName]) : null)
+      .map(item => item[newHashName] ||  null)
       .compact()
       .uniq()
       .value();
@@ -41,11 +40,11 @@ const updateState = async (eventName, newHashName, query = {}) => {
     if (hashes.length) {
       let bulkOps = hashes.map(hash => ({
         updateOne: {
-          filter: {hash: hash},
+          filter: {bytes32: hash},
           update: {
             $set: {
-              hash: hash,
-              bytes32: base58toBytes32(hash),
+              hash: bytes32toBase58(hash),
+              bytes32: hash,
               updated: Date.now(),
             }
           },
@@ -76,8 +75,6 @@ const updateStateWithOutdated = async (eventName, newHashName, oldHashName) => {
     await Promise.mapSeries(_.range(0, outdatedRecordsCount, PREFETCH_LIMIT), async startIndex => {
 
       let outDatedLogRecords = await txLogModel.find(outdatedRecordsQuery).sort({blockNumber: 1}).skip(startIndex).limit(PREFETCH_LIMIT);
-      let minOutDateBlockNumber = _.chain(outDatedLogRecords).head().get('blockNumber', 0).value();
-      let maxOutDateBlockNumber = _.chain(outDatedLogRecords).last().get('blockNumber', 0).value();
 
       let outdatedRecords = queryResultToEventArgsConverter(eventName, outDatedLogRecords);
 
@@ -92,13 +89,13 @@ const updateStateWithOutdated = async (eventName, newHashName, oldHashName) => {
       let queryWithOutDated = {
         $or: outdatedHashesInBlocks.map(item => ({
           [newHashName]: item[oldHashName],
-          blockNumber: {$gt: item.blockNumber, $lte: maxOutDateBlockNumber}
+          blockNumber: {$gt: item.blockNumber, $lte: startIndex + PREFETCH_LIMIT}
         }))
       };
 
       queryWithOutDated.$or.push({
         [newHashName]: {$nin: outdatedHashesInBlocks.map(item => item[oldHashName])},
-        blockNumber: {$gte: minOutDateBlockNumber, $lte: maxOutDateBlockNumber}
+        blockNumber: {$gte: startIndex, $lte: startIndex + PREFETCH_LIMIT}
       });
 
       return await updateState(eventName, newHashName, queryWithOutDated);

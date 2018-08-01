@@ -39,6 +39,9 @@ const config = {
     networkId: process.env.SMART_CONTRACTS_NETWORK_ID || '4',
     eventContract: process.env.SMART_CONTRACTS_EVENT_CONTRACT || 'MultiEventsHistory'
   },
+  logs: {
+    level: process.env.LOG_LEVEL || 'info'
+  },
   events: process.env.SM_EVENTS ? _.chain(process.env.SM_EVENTS)
     .split(',')
     .map(i => {

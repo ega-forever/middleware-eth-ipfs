@@ -21,7 +21,7 @@ const config = require('./config'),
   sem = require('semaphore')(1),
   smartContractsEventsFactory = require('./factories/smartContractsEventsFactory'),
   pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
-  log = bunyan.createLogger({name: 'plugins.ipfs'});
+  log = bunyan.createLogger({name: 'plugins.ipfs', level: config.logs.level});
 
 mongoose.Promise = Promise;
 mongoose.connect(config.mongo.data.uri, {useMongoClient: true});

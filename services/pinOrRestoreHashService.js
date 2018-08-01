@@ -8,9 +8,10 @@ const _ = require('lodash'),
   bunyan = require('bunyan'),
   pinModel = require('../models/pinModel'),
   Promise = require('bluebird'),
-  log = bunyan.createLogger({name: 'plugins.ipfs.pinOrRestoreHashService'}),
+  config = require('../config'),
+  log = bunyan.createLogger({name: 'plugins.ipfs.pinOrRestoreHashService', level: config.logs.level}),
   PREFETCH_LIMIT = 100,
-  TIMEOUT_DELAY = 10000;
+  TIMEOUT_DELAY = 5000;
 
 /**
  * @function
@@ -36,29 +37,35 @@ module.exports = async (ipfsStack) => {
 
     await Promise.map(pins, async (pin) => {
 
-      try {
+      pin.fail_tries = 0;
 
-        if (!_.get(pin, 'payload'))
-          pin.payload = await Promise.any(ipfsStack.map(async ipfs =>
-            await Promise.resolve(ipfs.object.data(pin.hash)).timeout(TIMEOUT_DELAY)
-          ));
+      let data = await Promise.all(ipfsStack.map(async (ipfs, index) => {
+        let payload = await Promise.resolve(ipfs.object.data(pin.hash)).timeout(TIMEOUT_DELAY).catch(() => null);
+        return payload ? {payload, index} : null;
+      }));
 
-        await Promise.map(ipfsStack, async ipfs =>
-          await Promise.resolve(ipfs.pin.add(pin.hash))
-            .timeout(TIMEOUT_DELAY)
-            .catch(() => Promise.resolve(ipfs.object.put({Data: pin.payload, Links: []})).timeout(TIMEOUT_DELAY))
-        );
+      data = _.compact(data);
 
-        pin.fail_tries = 0;
-
-        log.info(`pinned ${pin.hash} record`);
-
-      } catch (e) {
-        if (!pin.payload) {
-          pin.fail_tries = (pin.fail_tries || 0) + 1;
-          log.error(`can't pin ${pin.hash} record`);
-        }
+      if (!data.length && !pin.payload) {
+        pin.fail_tries = (pin.fail_tries || 0) + 1;
+        log.error(`can't pin ${pin.hash} record`);
       }
+
+      if (!pin.payload)
+        pin.payload = data[0].payload;
+
+      const outdatedIPFSNodes = [];
+
+      for (let i = 0; i < ipfsStack.length; i++)
+        if (!_.find(data, {index: i}))
+          outdatedIPFSNodes.push(ipfsStack[i]);
+
+      await Promise.map(outdatedIPFSNodes, async ipfs =>
+        await Promise.resolve(ipfs.object.put({Data: pin.payload, Links: []})).timeout(TIMEOUT_DELAY).catch((e) => console.log(e))
+      );
+
+
+      log.info(`pinned ${pin.hash} record`);
 
       await pin.save();
     }, {concurrency: 4});
