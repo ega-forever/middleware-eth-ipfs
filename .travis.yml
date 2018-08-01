@@ -13,31 +13,16 @@ before_install:
   - mongo data --eval 'db.dropDatabase();'
   - sudo apt-get update
   - sudo apt-get install python2.7 git-all pkg-config libncurses5-dev libssl-dev libnss3-dev libexpat-dev libc6-dev -y
-  - wget https://dist.ipfs.io/go-ipfs/v0.4.9/go-ipfs_v0.4.9_linux-amd64.tar.gz -O ipfs.tar.gz
-  - tar xvfz ipfs.tar.gz
-  - sudo mv go-ipfs/ipfs /usr/local/bin/ipfs
-  - ipfs init
 
 install:
-  - sudo rabbitmq-plugins enable rabbitmq_web_stomp
   - npm install
-  - npm install -g pm2
 
 before_script:
-    - echo IPFS_NODES=http://localhost:5001, https://ipfs.chronobank.io > .env
-    - echo SM_EVENTS=sethash:newHash:oldHash >> .env
-    - ipfs daemon > /dev/null &
-    - cd $TRAVIS_BUILD_DIR/node_modules/middleware_eth.blockProcessor && npm install
-    - cd $TRAVIS_BUILD_DIR/node_modules/middleware_eth.blockProcessor && pm2 start ipcConverter.js
-    - cd $TRAVIS_BUILD_DIR/node_modules/chronobank-smart-contracts && node --max_old_space_size=8000 ../truffle/build/cli.bundled.js migrate
-    - sleep 20 && cd $TRAVIS_BUILD_DIR && pm2 start index.js
+    - export IPFS_NODES=http://localhost:5001,http://localhost:5002
+    - export SM_EVENTS=sethash:newHash:oldHash
 
 script:
-  - sleep 10 && npm test -- --coverage
-
-after_script:
-  - pm2 logs --nostream
-  - pm2 kill && pkill PM2
+  - npm test -- --coverage
 
 after_success:
   - FULL_GCR_KEY="-----BEGIN PRIVATE KEY-----\n"$GCR_KEY"\n-----END PRIVATE KEY-----\n"
