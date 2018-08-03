@@ -51,7 +51,7 @@ module.exports = async (ipfsStack) => {
         log.error(`can't pin ${pin.hash} record`);
       }
 
-      if (!pin.payload)
+      if (data.length && !pin.payload)
         pin.payload = data[0].payload;
 
       const outdatedIPFSNodes = [];
@@ -61,7 +61,7 @@ module.exports = async (ipfsStack) => {
           outdatedIPFSNodes.push(ipfsStack[i]);
 
       await Promise.map(outdatedIPFSNodes, async ipfs =>
-        await Promise.resolve(ipfs.object.put({Data: pin.payload, Links: []})).timeout(TIMEOUT_DELAY).catch((e) => console.log(e))
+        await Promise.resolve(ipfs.object.put({Data: pin.payload, Links: []})).timeout(TIMEOUT_DELAY).catch((e) => log.error(e))
       );
 
 
