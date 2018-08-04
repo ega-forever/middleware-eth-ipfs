@@ -84,18 +84,21 @@ const updateStateWithOutdated = async (eventName, newHashName, oldHashName) => {
         .uniqBy(oldHashName)
         .value();
 
+      const maxBlockAmongHashes = outdatedHashesInBlocks[0].blockNumber;
+      const minBlockAmongHashes = _.last(outdatedHashesInBlocks).blockNumber;
+
       await pinModel.remove({bytes32: {$in: outdatedHashesInBlocks.map(item => item[oldHashName])}});
 
       let queryWithOutDated = {
         $or: outdatedHashesInBlocks.map(item => ({
           [newHashName]: item[oldHashName],
-          blockNumber: {$gt: item.blockNumber, $lte: startIndex + PREFETCH_LIMIT}
+          blockNumber: {$gt: item.blockNumber, $lte: maxBlockAmongHashes + PREFETCH_LIMIT}
         }))
       };
 
       queryWithOutDated.$or.push({
         [newHashName]: {$nin: outdatedHashesInBlocks.map(item => item[oldHashName])},
-        blockNumber: {$gte: startIndex, $lte: startIndex + PREFETCH_LIMIT}
+        blockNumber: {$gte: minBlockAmongHashes, $lte: maxBlockAmongHashes + PREFETCH_LIMIT}
       });
 
       return await updateState(eventName, newHashName, queryWithOutDated);
