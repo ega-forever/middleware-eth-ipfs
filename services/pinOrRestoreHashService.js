@@ -49,6 +49,7 @@ module.exports = async (ipfsStack) => {
       if (!data.length && !pin.payload) {
         pin.fail_tries = (pin.fail_tries || 0) + 1;
         log.error(`can't pin ${pin.hash} record`);
+        return await pin.save();
       }
 
       if (data.length && !pin.payload)
