@@ -24,7 +24,6 @@ module.exports = (ctx) => {
     await pinModel.remove({});
   });
 
-
   it('generate fake events', async () => {
 
     let generated = [];
@@ -35,7 +34,7 @@ module.exports = (ctx) => {
         return !!_.find(config.events, ev => ev.eventName === name);
       });
 
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 250; i++) {
 
         const builtArgs = ['0x0'];
         const sortedInputs = _.orderBy(definition.inputs, 'indexed', 'desc');
@@ -67,7 +66,7 @@ module.exports = (ctx) => {
           _id: uniqid(),
           address: smartContractsEventsFactory.address,
           args: builtArgs,
-          blockNumber: generated.length,
+          blockNumber: generated.length + 1000,
           dataIndexStart: dataIndexStart,
           index: generated.length,
           removed: false,
@@ -80,7 +79,6 @@ module.exports = (ctx) => {
     for (let item of generated)
       await txLogModel.create(item);
   });
-
 
   it('validate fetchHashesService function', async () => {
 
@@ -123,25 +121,21 @@ module.exports = (ctx) => {
         .uniq()
         .value();
 
-
       for (let hash of actualHashesInBlocks) {
         let item = _.find(records, {[event.newHashField]: hash});
         expect(item).to.not.be.undefined;
         let isExistsInDb = await pinModel.count({bytes32: hash});
+
         expect(isExistsInDb).to.eq(1);
       }
 
       totalRecordsCount += actualHashesInBlocks.length;
-
     }
 
     let totalPins = await pinModel.count();
 
     expect(totalRecordsCount).to.eq(totalPins);
-
-
   });
-
 
   it('validate pinOrRestoreHashService function', async () => {
 
@@ -156,6 +150,5 @@ module.exports = (ctx) => {
 
     expect(badRecordsCount).to.eq(0);
   });
-
 
 };
