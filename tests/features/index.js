@@ -38,7 +38,7 @@ module.exports = (ctx) => {
         return !!_.find(config.events, ev => ev.eventName === name);
       });
 
-      for (let i = 0; i < 50; i++) {
+      for (let i = 0; i < 250; i++) {
 
         const builtArgs = ['0x0'];
         const sortedInputs = _.orderBy(definition.inputs, 'indexed', 'desc');
@@ -148,7 +148,7 @@ module.exports = (ctx) => {
     for (let i = 0; i < 2 * config.events.length; i++) {
       const default_delay = moment(
         new Date(parser.parseExpression(config.schedule.pinJob).next().toString())
-      ).add((records.length * 5), 'seconds').diff(new Date());
+      ).add(((records.length > 100 ? 100 : records.length) * 5), 'seconds').diff(new Date());
 
       await Promise.delay(default_delay);
     }

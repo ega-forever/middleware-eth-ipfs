@@ -92,7 +92,7 @@ module.exports = (ctx) => {
 
       return await fetchHashesService(event.eventName, event.newHashField, event.oldHashField);
     });
-    expect(Date.now() - start).to.be.below(2000 * config.events.length * config.nodes.length);
+    expect(Date.now() - start).to.be.below(10000 * config.events.length * config.nodes.length);
   });
 
 
