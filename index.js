@@ -1,29 +1,29 @@
 /**
+ * Copyright 2017–2018, LaborX PTY
+ * Licensed under the AGPL Version 3 license.
+ * @author Egor Zuev <zyev.egor@gmail.com>
+ */
+
+/**
  * Middleware service for maintaining records in IPFS
- * See required modules
- * models/pinModel {@link models/pinModel}
  * @module Chronobank/eth-ipfs
- * @requires models/pinModel
- * @requires services/scheduleService
- * @requires helpers/bytes32toBase58
  */
 
 const config = require('./config'),
   Promise = require('bluebird'),
+  cronParser = require('cron-parser'),
   mongoose = require('mongoose'),
-  scheduleService = require('./services/scheduleService'),
+  fetchHashesService = require('./services/fetchHashesService'),
+  schedule = require('node-schedule'),
+  ipfsAPI = require('ipfs-api'),
   bunyan = require('bunyan'),
-  requireAll = require('require-all'),
   _ = require('lodash'),
-  eventsModelsBuilder = require('./utils/eventsModelsBuilder'),
   AmqpService = require('middleware_common_infrastructure/AmqpService'),
   InfrastructureInfo = require('middleware_common_infrastructure/InfrastructureInfo'),
   InfrastructureService = require('middleware_common_infrastructure/InfrastructureService'),
-  log = bunyan.createLogger({name: 'core.balanceProcessor'}),
-  contracts = requireAll({ //scan dir for all smartContracts, excluding emitters (except ChronoBankPlatformEmitter) and interfaces
-    dirname: config.smartContracts.path,
-    filter: /(^((ChronoBankPlatformEmitter)|(?!(Emitter|Interface)).)*)\.json$/,
-  });
+  sem = require('semaphore')(1),,
+  pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
+  log = bunyan.createLogger({name: 'plugins.ipfs', level: config.logs.level});
 
 mongoose.Promise = Promise;
 mongoose.connect(config.mongo.data.uri, {useMongoClient: true});
@@ -55,25 +55,53 @@ let init = async () => {
   if (config.checkSystem)
     await runSystem();
 
-  let events = eventsModelsBuilder(contracts);
+  const ipfsStack = config.nodes.map(node => ipfsAPI(node));
+  const rulePin = new schedule.RecurrenceRule();
+  const ruleFetch = new schedule.RecurrenceRule();
 
-  events = _.chain(events)
-    .toPairs()
-    .transform((result, pair) => {
+  _.merge(rulePin, _.pick(cronParser.parseExpression(config.schedule.pinJob)._fields, ['second', 'minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek']));
+  _.merge(ruleFetch, _.pick(cronParser.parseExpression(config.schedule.fetchJob)._fields, ['second', 'minute', 'hour', 'dayOfMonth', 'month', 'dayOfWeek']));
 
-      let confEvent = _.find(config.smartContracts.events, ev => ev.eventName.toLowerCase() === pair[0].toLowerCase());
 
-      if (confEvent)
-        result.push(_.merge({
-          model: pair[1],
-        }, confEvent));
+  let isFetchHashesPending = false;
+  let isPinHashesPending = false;
 
-    }, [])
-    .value();
+  schedule.scheduleJob(ruleFetch, async () => {
+    if (isFetchHashesPending)
+      return;
 
-  for (const event of events)
-    scheduleService(event);
+    isFetchHashesPending = true;
+    sem.take(async () => {
+      log.info('start scanning cache for hashes');
+      await Promise.mapSeries(config.events, async event => {
 
+        let definition = _.find(smartContractsEventsFactory.events, ev => ev.name.toLowerCase() === event.eventName);
+        if (!definition)
+          return [];
+
+        return await fetchHashesService(event.eventName, event.newHashField, event.oldHashField);
+      });
+
+      log.info('successfully cached records');
+      isFetchHashesPending = false;
+      sem.leave();
+    });
+  });
+
+
+  schedule.scheduleJob(rulePin, async () => {
+    if (isPinHashesPending)
+      return;
+
+    isPinHashesPending = true;
+    sem.take(async () => {
+      log.info('start pinning records');
+      await pinOrRestoreHashService(ipfsStack);
+      log.info('successfully pinned records');
+      isPinHashesPending = false;
+      sem.leave();
+    });
+  });
 };
 
 module.exports = init();

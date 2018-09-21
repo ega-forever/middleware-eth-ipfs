@@ -1,4 +1,10 @@
 /**
+ * Copyright 2017–2018, LaborX PTY
+ * Licensed under the AGPL Version 3 license.
+ * @author Egor Zuev <zyev.egor@gmail.com>
+ */
+
+/**
  * Chronobank/eth-ipfs configuration
  * @module config
  * @returns {Object} Configuration
@@ -23,7 +29,8 @@ const config = {
   },
   checkSystem: process.env.CHECK_SYSTEM || true,
   schedule: {
-    job: process.env.SCHEDULE_JOB || '30 * * * * *'
+    pinJob: process.env.SCHEDULE_JOB ||  process.env.SCHEDULE_PIN_JOB || '30 * * * * *',
+    fetchJob: process.env.SCHEDULE_JOB || process.env.SCHEDULE_FETCH_JOB || '30 * * * * *'
   },
   nodes: process.env.IPFS_NODES ? _.chain(process.env.IPFS_NODES)
     .split(',')
@@ -35,18 +42,24 @@ const config = {
     [{'host': 'localhost', 'port': '5001', 'protocol': 'http'}],
   smartContracts: {
     path: process.env.SMART_CONTRACTS_PATH || path.join(__dirname, '../node_modules/chronobank-smart-contracts/build/contracts'),
-    events: process.env.SM_EVENTS ? _.chain(process.env.SM_EVENTS)
-      .split(',')
-      .map(i => {
-        i = i.split(':');
-        return {
-          eventName: i[0],
-          newHashField: i[1],
-          oldHashField: i[2]
-        };
-      })
-      .value() : []
-  }
+    networkId: process.env.SMART_CONTRACTS_NETWORK_ID || '4',
+    eventContract: process.env.SMART_CONTRACTS_EVENT_CONTRACT || 'MultiEventsHistory'
+  },
+  logs: {
+    level: process.env.LOG_LEVEL || 'info'
+  },
+  events: process.env.SM_EVENTS ? _.chain(process.env.SM_EVENTS)
+    .split(',')
+    .map(i => {
+      i = i.split(':');
+      return {
+        eventName: i[0].toLowerCase().trim(),
+        newHashField: i[1],
+        oldHashField: i[2]
+      };
+    })
+    .value() : []
+
 
 };
 

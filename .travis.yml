@@ -7,34 +7,21 @@ node_js: 7.6.0
 
 services:
   - mongodb
-  - rabbitmq
 
 before_install:
   - mongo data --eval 'db.dropDatabase();'
   - sudo apt-get update
   - sudo apt-get install python2.7 git-all pkg-config libncurses5-dev libssl-dev libnss3-dev libexpat-dev libc6-dev -y
-  - wget https://dist.ipfs.io/go-ipfs/v0.4.9/go-ipfs_v0.4.9_linux-amd64.tar.gz -O ipfs.tar.gz
-  - tar xvfz ipfs.tar.gz
-  - sudo mv go-ipfs/ipfs /usr/local/bin/ipfs
-  - ipfs init
 
 install:
-  - sudo rabbitmq-plugins enable rabbitmq_web_stomp
   - npm install
-  - npm install -g pm2
 
 before_script:
-    - echo IPFS_NODES=http://localhost:5001, http://localhost:5001 > .env
-    - echo SM_EVENTS=sethash:newHash:oldHash >> .env
-    - ipfs daemon > /dev/null &
-    - sleep 20 && cd $TRAVIS_BUILD_DIR && pm2 start index.js
+    - export IPFS_NODES=http://localhost:5001,http://localhost:5002
+    - export SM_EVENTS=sethash:newHash:oldHash
 
 script:
-  - sleep 10 && npm test -- --coverage
-
-after_script:
-  - pm2 logs --nostream
-  - pm2 kill && pkill PM2
+  - travis_wait 30 npm test -- --coverage
 
 after_success:
   - FULL_GCR_KEY="-----BEGIN PRIVATE KEY-----\n"$GCR_KEY"\n-----END PRIVATE KEY-----\n"
@@ -50,10 +37,10 @@ after_success:
   - IMAGE_TAG_NAME="latest"
   - |
     if [ "$TRAVIS_BRANCH" == "master" ]; then
-      travis_wait 30 docker build -t gcr.io/deep-wares-144610/$TRAVIS_BRANCH/middleware-ethereum:$IMAGE_TAG_NAME --build-arg RELEASE=latest .
+      travis_wait 30 docker build -t gcr.io/deep-wares-144610/$TRAVIS_BRANCH/middleware-ethereum:$IMAGE_TAG_NAME --build-arg RELEASE=latest --build-arg GITHUB_API_KEY=$GITHUB_API_KEY .
       docker push gcr.io/deep-wares-144610/$TRAVIS_BRANCH/middleware-ethereum:$IMAGE_TAG_NAME
     elif [ "$TRAVIS_BRANCH" == "develop" ]; then
-      travis_wait 30 docker build -t gcr.io/deep-wares-144610/$TRAVIS_BRANCH/middleware-ethereum:$IMAGE_TAG_NAME --build-arg RELEASE=develop .
+      travis_wait 30 docker build -t gcr.io/deep-wares-144610/$TRAVIS_BRANCH/middleware-ethereum:$IMAGE_TAG_NAME --build-arg RELEASE=develop --build-arg GITHUB_API_KEY=$GITHUB_API_KEY .
       docker push gcr.io/deep-wares-144610/$TRAVIS_BRANCH/middleware-ethereum:$IMAGE_TAG_NAME
     fi;
 
