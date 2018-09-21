@@ -16,6 +16,12 @@ const config = {
       collectionPrefix: process.env.MONGO_DATA_COLLECTION_PREFIX || process.env.MONGO_COLLECTION_PREFIX || 'eth'
     }
   },
+  systemRabbit: {
+    url: process.env.SYSTEM_RABBIT_URI || process.env.RABBIT_URI || 'amqp://localhost:5672',
+    exchange: process.env.SYSTEM_RABBIT_EXCHANGE || 'internal',
+    serviceName: process.env.SYSTEM_RABBIT_SERVICE_NAME || 'system' 
+  },
+  checkSystem: process.env.CHECK_SYSTEM || true,
   schedule: {
     job: process.env.SCHEDULE_JOB || '30 * * * * *'
   },
