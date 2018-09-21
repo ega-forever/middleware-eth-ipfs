@@ -21,6 +21,7 @@ const config = require('./config'),
   AmqpService = require('middleware_common_infrastructure/AmqpService'),
   InfrastructureInfo = require('middleware_common_infrastructure/InfrastructureInfo'),
   InfrastructureService = require('middleware_common_infrastructure/InfrastructureService'),
+  smartContractsEventsFactory = require('./factories/smartContractsEventsFactory'),
   sem = require('semaphore')(1),,
   pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
   log = bunyan.createLogger({name: 'plugins.ipfs', level: config.logs.level});
