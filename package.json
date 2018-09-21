@@ -10,7 +10,7 @@
     "bluebird": "^3.5.0",
     "bunyan": "^1.8.12",
     "chronobank-smart-contracts": "^1.1.*",
-    "middleware_common_infrastructure": "^1.0.0",
+    "middleware_common_infrastructure": "^1.0.2",
     "dotenv": "^4.0.0",
     "ipfs-api": "^14.0.2",
     "lodash": "^4.17.4",
