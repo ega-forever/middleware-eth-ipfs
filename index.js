@@ -18,8 +18,11 @@ const config = require('./config'),
   ipfsAPI = require('ipfs-api'),
   bunyan = require('bunyan'),
   _ = require('lodash'),
-  sem = require('semaphore')(1),
+  AmqpService = require('middleware_common_infrastructure/AmqpService'),
+  InfrastructureInfo = require('middleware_common_infrastructure/InfrastructureInfo'),
+  InfrastructureService = require('middleware_common_infrastructure/InfrastructureService'),
   smartContractsEventsFactory = require('./factories/smartContractsEventsFactory'),
+  sem = require('semaphore')(1),,
   pinOrRestoreHashService = require('./services/pinOrRestoreHashService'),
   log = bunyan.createLogger({name: 'plugins.ipfs', level: config.logs.level});
 
@@ -31,7 +34,27 @@ mongoose.connection.on('disconnected', function () {
   process.exit(0);
 });
 
+const runSystem = async function () {
+  const rabbit = new AmqpService(
+    config.systemRabbit.url, 
+    config.systemRabbit.exchange,
+    config.systemRabbit.serviceName
+  );
+  const info = new InfrastructureInfo(require('./package.json'));
+  const system = new InfrastructureService(info, rabbit, {checkInterval: 10000});
+  await system.start();
+  system.on(system.REQUIREMENT_ERROR, (requirement, version) => {
+    log.error(`Not found requirement with name ${requirement.name} version=${requirement.version}.` +
+        ` Last version of this middleware=${version}`);
+    process.exit(1);
+  });
+  await system.checkRequirements();
+  system.periodicallyCheck();
+};
+
 let init = async () => {
+  if (config.checkSystem)
+    await runSystem();
 
   const ipfsStack = config.nodes.map(node => ipfsAPI(node));
   const rulePin = new schedule.RecurrenceRule();

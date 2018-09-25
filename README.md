@@ -65,12 +65,16 @@ The options are presented below:
 | SCHEDULE_CHECK_TIME   | an option, which defines how old should be records, which have to be pinned
 | SMART_CONTRACTS_NETWORK_ID   | the network id (1-mainnet, 4-rinkeby and so on)
 | SM_EVENTS   | smart contract's event definition for hash create/update (ipfs multihash). Has the following signature: 'event_name:new_hash_field:old_hash_field'. 3 argument (old_hash_field) is optional
+| SYSTEM_RABBIT_URI   | rabbitmq URI connection string for infrastructure
+| SYSTEM_RABBIT_SERVICE_NAME   | rabbitmq service name for infrastructure
+| SYSTEM_RABBIT_EXCHANGE   | rabbitmq exchange name for infrastructure
+| CHECK_SYSTEM | check infrastructure or not (default = true)
 | LOG_LEVEL   | the logging level. Can be 'error' (which prints only errors) or 'info' (prints errors + info logs). Default is 'info' level
+
 
 License
 ----
  [GNU AGPLv3](LICENSE)
-
+=======
 Copyright
-----
 LaborX PTY
