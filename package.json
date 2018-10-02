@@ -2,9 +2,7 @@
   "name": "middleware_eth.ipfs",
   "version": "1.0.0",
   "main": "index.js",
-  "requirements": {
-
-  },
+  "requirements": {},
   "dependencies": {
     "bignumber.js": "^7.2.1",
     "bluebird": "^3.5.0",
